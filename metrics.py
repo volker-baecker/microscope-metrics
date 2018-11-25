@@ -21,9 +21,9 @@ def argolight_field(channel,
     thresh = threshold_otsu(channel)
 
     # We may try here hysteresis thresholding
-    thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.2))
+    thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
 
-    bw = closing(thresholded, cube(2))
+    bw = closing(thresholded, cube(50))
     cleared = clear_border(bw)
     label_image = label(cleared)
     regions = regionprops(label_image, channel)
