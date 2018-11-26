@@ -6,24 +6,27 @@ from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square, cube, octahedron, ball
 from scipy.spatial.distance import cdist
+from itertools import permutations
 import numpy as np
 
 
 
 def argolight_field(channel,
-                    dimensions=('z','x', 'y'),
-                    x_pixel_size_nm=None,
-                    y_pixel_size_nm=None,
-                    z_pixel_size_nm=None):
+                    pixel_size_nm=(None, None, None)):
     """Analyzes an array of rings"""
     properties = list()
 
+    # If pixel sizes are not provided, we log the absence and we use 1
+    if None in pixel_size_nm:
+        print('Pixel sizes are not provided. The unity will be used')
+        pixel_size_nm = (1., 1., 1.)
+
+    # Calculate Otsu's threshold and use it with hysteresis:
     thresh = threshold_otsu(channel)
+    thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.2))
 
-    # We may try here hysteresis thresholding
-    thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
-
-    bw = closing(thresholded, cube(50))
+    # We smooth the region detection using a growing and shrinking ball
+    bw = closing(thresholded, cube(20))
     cleared = clear_border(bw)
     label_image = label(cleared)
     regions = regionprops(label_image, channel)
@@ -31,8 +34,8 @@ def argolight_field(channel,
     for region in regions:
         properties.append({'label': region.label,
                            'area': region.area,
-                           'centroid': region.centroid,
-                           'weighted_centroid': region.weighted_centroid,
+                           'centroid': tuple(l * r for l, r in zip(region.centroid, pixel_size_nm)),
+                           'weighted_centroid': tuple(l * r for l, r in zip(region.weighted_centroid, pixel_size_nm)),
                            'max_intensity': region.max_intensity,
                            'mean_intensity': region.mean_intensity,
                            'min_intensity': region.min_intensity
@@ -42,19 +45,37 @@ def argolight_field(channel,
 
 
 def analise_distances_matrix(positions):
-    """Calculates all possible distances between all channels and returns the imteresting values
-    @:parameter positions: a numpy ndarray containing dimensions [channel, x, y, z] or [channel, x, y]"""
+    """Calculates all possible distances between all channels and returns the interesting values
+    @:parameter positions: a list of numpy ndarray's containing dimensions [x, y, z] or [x, y]"""
 
-    if len(positions.shape) == 4:
+    raw_distances_3d = list()
+    raw_distances_1d = list()
+
+    min_distances_3d = list()
+    min_distances_1d = list()
+
+    # Verify that there is more than 1 channel
+    if len(positions) < 2:
+        print('No distances found as there was only one channel.')
+        return None
+
+    # Verify the number of dimensions
+    if positions[0].shape[1] == 3:
         n_dim = 3
-    elif len(positions.shape) == 3:
+    elif positions[0].shape[1] == 2:
         n_dim = 2
     else:
         raise Exception('Not enough dimensions to do a distance measurement')
 
-    if n_dim == 2:
-        distances = cdist(positions[1, :, :], positions[2, :, :])
-    if n_dim == 3:
-        distances = cdist(positions[1, :, :, :], positions[2, :, :, :])
+    ch_permutations = permutations(positions, 2)
+    ch_nr_permutatiions = permutations(range(len(positions)), 2)
 
-    return distances
+    for pair in ch_permutations:
+        raw_distances_3d.append(cdist(pair[0], pair[1]))
+        # raw_distances_1d.append([cdist(pair[0][:, x], pair[1][:, x]) for x in range(pair[0].shape[1])])
+        # raw_distances_1d.append(tuple([l - r for l, r in zip(pair[0], pair[1])]))
+
+        # Get the smaller distances
+        min_distances_3d.append(np.amin(raw_distances_3d[-1], 1))
+
+    return min_distances_3d
