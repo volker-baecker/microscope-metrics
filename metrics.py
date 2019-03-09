@@ -7,54 +7,101 @@ from skimage.measure import label, regionprops
 from skimage.morphology import closing, square, cube, octahedron, ball
 from scipy.spatial.distance import cdist
 import numpy as np
+from itertools import permutations
 
 
+class BeadsField2D:
+    """
+    Docs in here
+    """
+    def __init__(self,
+                 image: np.ndarray,
+                 dimensions: tuple = ('z', 'c', 'x', 'y'),
+                 pixel_size_um = None,
+                 ):
+        self.image = image
+        self.dimensions = dimensions
+        self.pixel_size_um = pixel_size_um
+        self.labels_image = np.zeros(self.image.shape, dtype=np.uint16)
+        self.properties = list()
+        self.positions = list()
+        self.channel_permutations = list()
+        self.distances = list()
+        # TODO: reshape image if dimensions is not default
+        # TODO: implement drift for a time dimension
 
-def argolight_field(channel,
-                    dimensions=('z','x', 'y'),
-                    x_pixel_size_nm=None,
-                    y_pixel_size_nm=None,
-                    z_pixel_size_nm=None):
-    """Analyzes an array of rings"""
-    properties = list()
+    def segment_channel(self, channel):
+        thresh = threshold_otsu(channel)
 
-    thresh = threshold_otsu(channel)
+        # We may try here hysteresis thresholding
+        thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
 
-    # We may try here hysteresis thresholding
-    thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
+        bw = closing(thresholded, cube(50))
+        cleared = clear_border(bw)
+        return label(cleared)
 
-    bw = closing(thresholded, cube(50))
-    cleared = clear_border(bw)
-    label_image = label(cleared)
-    regions = regionprops(label_image, channel)
+    def segment_image(self):
+        for c in range(self.image.shape[1]):
+            self.labels_image[:, c] = self.segment_channel(self.image[:, c])
 
-    for region in regions:
-        properties.append({'label': region.label,
-                           'area': region.area,
-                           'centroid': region.centroid,
-                           'weighted_centroid': region.weighted_centroid,
-                           'max_intensity': region.max_intensity,
-                           'mean_intensity': region.mean_intensity,
-                           'min_intensity': region.min_intensity
-                           })
+    def compute_channel_properties(self, channel, label_channel):
+        """Analyzes and extracts the properties of a single channel"""
 
-    return properties, label_image
+        ch_properties = list()
 
+        regions = regionprops(label_channel, channel)
 
-def analise_distances_matrix(positions):
-    """Calculates all possible distances between all channels and returns the imteresting values
-    @:parameter positions: a numpy ndarray containing dimensions [channel, x, y, z] or [channel, x, y]"""
+        for region in regions:
+            ch_properties.append({'label': region.label,
+                                  'area': region.area,
+                                  'centroid': region.centroid,
+                                  'weighted_centroid': region.weighted_centroid,
+                                  'max_intensity': region.max_intensity,
+                                  'mean_intensity': region.mean_intensity,
+                                  'min_intensity': region.min_intensity
+                                  })
+        ch_positions = np.array([x['weighted_centroid'] for x in ch_properties])
+        if self.pixel_size_um:
+            ch_positions = ch_positions[0:] * self.pixel_size_um
 
-    if len(positions.shape) == 4:
-        n_dim = 3
-    elif len(positions.shape) == 3:
-        n_dim = 2
-    else:
-        raise Exception('Not enough dimensions to do a distance measurement')
+        return ch_properties, ch_positions
 
-    if n_dim == 2:
-        distances = cdist(positions[1, :, :], positions[2, :, :])
-    if n_dim == 3:
-        distances = cdist(positions[1, :, :, :], positions[2, :, :, :])
+    def compute_image_properties(self):
+        for c in range(self.image.shape[1]):
+            pr, pos = self.compute_channel_properties(self.image[:, c], self.labels_image[:, c])
+            self.properties.append(pr)
+            self.positions.append(pos)
 
-    return distances
+    def compute_distances_matrix(self):
+        """Calculates all possible distances between all channels and returns the interesting values"""
+
+        if self.image.shape[0] == 1:
+            raise Exception('Image has one only channel and no distances matrix can be calculated')
+            return None
+        if len(self.properties) == 0:  # We guess that properties have not been calculated yet
+            self.compute_image_properties()
+
+        n_dim = len(self.positions) - 1
+
+        if n_dim < 2:
+            raise Exception('Not enough dimensions to do a distance measurement')
+
+        self.channel_permutations = list(permutations(range(len(self.positions)), 2))
+
+        # Create a space to hold the distances. For every permutation we want to store:
+        # Positions of a (indexes 0:2)
+        # Distance to the closest spot in b (index 3)
+        # Index of the nearest spot in b (index 4)
+
+        distances = list()
+
+        for a, b in self.channel_permutations:
+            distances_matrix = cdist(self.positions[a], self.positions[b])
+
+            distance = None
+            for p, d in zip(self.positions[a], distances_matrix[0]):
+                distance = list(p[:])
+                distance.append(d.min())
+                distance.append(d.argmin())
+
+            self.distances.append(distance)
