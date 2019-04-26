@@ -1,10 +1,11 @@
 """These are some possibly useful code snippets"""
 
 # Thresholding and labeling
-from skimage.filters import threshold_otsu, apply_hysteresis_threshold
+from skimage.filters import threshold_otsu, apply_hysteresis_threshold, gaussian
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square, cube, octahedron, ball
+from skimage.feature import peak_local_max
 from scipy.spatial.distance import cdist
 import numpy as np
 from itertools import permutations
@@ -30,19 +31,33 @@ class BeadsField2D:
         # TODO: reshape image if dimensions is not default
         # TODO: implement drift for a time dimension
 
-    def segment_channel(self, channel):
+    def segment_channel(self, channel, sigma, method='local_maxima'):
+        """Segment a given channel (3D numpy narray) to find the spots"""
         thresh = threshold_otsu(channel)
 
-        # We may try here hysteresis thresholding
-        thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
+        gauss_filtered = np.copy(channel)
+        gaussian(gauss_filtered, (1, 3, 3))
 
-        bw = closing(thresholded, cube(50))
+        if method == 'hysteresis':  # We may try here hysteresis threshold
+            thresholded = apply_hysteresis_threshold(gauss_filtered, low=(thresh * .7), high=(thresh * 1.0))
+
+        elif method == 'local_maxima':  # We are applying a local maxima algorithm
+            peaks = peak_local_max(gauss_filtered,
+                                   min_distance=sigma,
+                                   threshold_abs=(thresh * .2),
+                                   exclude_border=True,
+                                   indices=False)
+            thresholded = np.copy(gauss_filtered)
+            thresholded[peaks] = thresholded.max()
+            thresholded = apply_hysteresis_threshold(thresholded, low=(thresh * .9), high=(thresh * 1.0))
+
+        bw = closing(thresholded, cube(sigma))
         cleared = clear_border(bw)
         return label(cleared)
 
     def segment_image(self):
         for c in range(self.image.shape[1]):
-            self.labels_image[:, c] = self.segment_channel(self.image[:, c])
+            self.labels_image[:, c] = self.segment_channel(self.image[:, c], sigma=30)
 
     def compute_channel_properties(self, channel, label_channel):
         """Analyzes and extracts the properties of a single channel"""
@@ -93,15 +108,16 @@ class BeadsField2D:
         # Distance to the closest spot in b (index 3)
         # Index of the nearest spot in b (index 4)
 
-        distances = list()
-
         for a, b in self.channel_permutations:
+            # TODO: Try this
             distances_matrix = cdist(self.positions[a], self.positions[b])
 
-            distance = None
-            for p, d in zip(self.positions[a], distances_matrix[0]):
-                distance = list(p[:])
-                distance.append(d.min())
-                distance.append(d.argmin())
+            pairwise_distances = list()
+            for p, d in zip(self.positions[a], distances_matrix):
+                single_distance = list()
+                single_distance.append(tuple(p))  # Adding the coordinates of spot in ch_a
+                single_distance.append(d.min())  # Appending the 3D distance
+                single_distance.append(d.argmin())  # Appending the index of the closest spot in ch_b
+                pairwise_distances.append(single_distance)
 
-            self.distances.append(distance)
+            self.distances.append(pairwise_distances)
