@@ -14,12 +14,6 @@ n_channels = raw_img.shape[1]
 x_size = raw_img.shape[2]
 y_size = raw_img.shape[3]
 
-BF = metrics.BeadsField2D(raw_img)
-
-BF.segment_image()
-BF.compute_image_properties()
-BF.compute_distances_matrix()
-
 
 def plot_distances_maps(data, nb_of_channels, x_dim, y_dim):
     fig, axes = plt.subplots(ncols=nb_of_channels, nrows=nb_of_channels, squeeze=False, figsize=(12, 12))
@@ -67,11 +61,22 @@ def plot_homogeneity_map(data, nb_of_channels, x_dim, y_dim):
     plt.show()
 
 
-plot_homogeneity_map(data=BF,
-                     nb_of_channels=n_channels,
-                     x_dim=x_size,
-                     y_dim=y_size)
+def main():
+    BF = metrics.BeadsField2D(raw_img)
 
-fig.colorbar(interpolated.T)
+    BF.segment_image()
+    BF.compute_image_properties()
+    BF.compute_distances_matrix()
 
-# out = metrics.analise_distances_matrix(positions)
+    plot_homogeneity_map(data=BF,
+                         nb_of_channels=n_channels,
+                         x_dim=x_size,
+                         y_dim=y_size)
+
+    # fig.colorbar(interpolated.T)
+
+    # out = metrics.analise_distances_matrix(positions)
+
+
+if __name__ == '__main__':
+    main()
