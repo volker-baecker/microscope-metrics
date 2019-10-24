@@ -5,15 +5,6 @@ import metrics
 import numpy as np
 from scipy.interpolate import griddata
 
-# raw_img = imageio.volread('/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_WF_ALX.ome.tif')
-raw_img = imageio.volread('/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_SIR_ALX.ome.tif')
-# raw_img = imageio.volread('/home/julio/PycharmProjects/OMERO.metrics/Images/Test_image_SIR_ALX.ome.tif')
-# raw_img = imageio.volread('/Users/julio/Desktop/20170215_R506_Argolight_SIM_001_visit_13_WF.ome.tif')
-# raw_img = imageio.volread('/Users/julio/Desktop/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.dv/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.ome.tif')
-n_channels = raw_img.shape[1]
-x_size = raw_img.shape[2]
-y_size = raw_img.shape[3]
-
 
 def plot_distances_maps(data, nb_of_channels, x_dim, y_dim):
     fig, axes = plt.subplots(ncols=nb_of_channels, nrows=nb_of_channels, squeeze=False, figsize=(12, 12))
@@ -62,11 +53,21 @@ def plot_homogeneity_map(data, nb_of_channels, x_dim, y_dim):
 
 
 def main():
-    BF = metrics.BeadsField2D(raw_img)
+    # raw_img = imageio.volread('/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_WF_ALX.ome.tif')
+    raw_img = imageio.volread(
+        '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_SIR_ALX.ome.tif')
+    # raw_img = imageio.volread('/home/julio/PycharmProjects/OMERO.metrics/Images/Test_image_SIR_ALX.ome.tif')
+    # raw_img = imageio.volread('/Users/julio/Desktop/20170215_R506_Argolight_SIM_001_visit_13_WF.ome.tif')
+    # raw_img = imageio.volread('/Users/julio/Desktop/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.dv/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.ome.tif')
+    n_channels = raw_img.shape[1]
+    x_size = raw_img.shape[2]
+    y_size = raw_img.shape[3]
 
-    BF.segment_image()
-    BF.compute_image_properties()
-    BF.compute_distances_matrix()
+    labels_image = metrics.segment_image(image=raw_img)
+
+    spots_properties, spots_positions = metrics.compute_spots_properties(raw_img,labels_image)
+
+    spots_distances = metrics.compute_distances_matrix(spots_positions)
 
     plot_homogeneity_map(data=BF,
                          nb_of_channels=n_channels,
