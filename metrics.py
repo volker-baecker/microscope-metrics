@@ -37,7 +37,7 @@ def _segment_single_channel(channel, min_distance, method='local_max', hysteresi
     """Segment a given channel (3D numpy array) to find PSF-like spots"""
     threshold = threshold_otsu(channel)
 
-    # TODO: Thereshoudl be a sigma passed here
+    # TODO: Threshold be a sigma passed here
     gauss_filtered = gaussian(np.copy(channel), (3, 3, 1))
 
     if method == 'hysteresis':  # We may try here hysteresis threshold
@@ -182,15 +182,13 @@ def _radial_mean(image, bins=None):
 
 
 def _channel_fft_2d(channel):
-
     # channel_fft = np.fft.rfftn(channel)
     channel_fft = np.fft.rfft2(channel)
-    channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), 1)
+    channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), axes=1)
     return channel_fft_magnitude
 
 
 def fft_2d(image):
-
     # Create an empty array to contain the transform
     fft = np.zeros(shape=(image.shape[1],
                           image.shape[2],
@@ -201,9 +199,59 @@ def fft_2d(image):
 
     return fft
 
+
 def _channel_fft_3d(channel):
     channel_fft = np.fft.rfftn(channel)
+    channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), axes=1)
+    return channel_fft_magnitude
 
-def fft_3d():
+
+def fft_3d(image):
+    fft = np.zeros(shape=(image.shape[1],
+                          image.shape[0],
+                          image.shape[2],
+                          image.shape[3] // 2 + 1),
+                   dtype='float64')
+    for c in range(image.shape[1]):
+        fft[c, ...] = _channel_fft_3d(image[:, c, ...])
+
+    return fft
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
+    import imageio
+    import metrics
+    from scipy.interpolate import griddata
+
+    # raw_img = imageio.volread('/home/julio/PycharmProjects/OMERO.metrics/Images/Test_image_SIR_ALX.ome.tif')
+    raw_img = imageio.volread('/home/julio/PycharmProjects/OMERO.metrics/Images/Test_image_WF_ALX.ome.tif')
+
+    n_channels = raw_img.shape[1]
+    x_size = raw_img.shape[2]
+    y_size = raw_img.shape[3]
+    z_size = raw_img.shape[0]
+
+    # segment the 3D stack
+    # labels_image = metrics.segment_image(image=raw_img, hysteresis_levels=(.4, .5))
+
+    # Measure some of the spots properties
+    # spots_properties, spots_positions = metrics.compute_spots_properties(image=raw_img, labels=labels_image)
+
+    # Calculate pair-wise distances
+    # spots_distances = metrics.compute_distances_matrix(spots_positions)
+
+    # Calculate 2D FFT
+    # slice_2d = raw_img[17, ...].reshape([1, n_channels, x_size, y_size])
+    # fft_2D = fft_2d(slice_2d)
+
+    # Calculate 3D FFT
+    fft_3D = fft_3d(raw_img)
+
+    plt.imshow(np.log(fft_3D[2, :, :, 1]))  # , cmap='hot')
+    # plt.imshow(np.log(fft_3D[2, 23, :, :]))  # , cmap='hot')
+    plt.show()
+
     pass
 
