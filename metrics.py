@@ -10,6 +10,7 @@ from scipy.spatial.distance import cdist
 from scipy import ndimage
 import numpy as np
 from itertools import permutations
+from statistics import median
 import logging
 
 # class BeadsField2D:
