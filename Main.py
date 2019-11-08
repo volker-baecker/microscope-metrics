@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import imageio
-from itertools import product
+from itertools import product, permutations
 import metrics
 import numpy as np
 from scipy.interpolate import griddata
@@ -9,17 +9,19 @@ from scipy.interpolate import griddata
 from credentials import USER, PASSWORD
 
 
-def plot_distances_maps(data, nb_of_channels, x_dim, y_dim):
+def plot_distances_maps(distances, nb_of_channels, x_dim, y_dim):
+    """[((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]"""
     fig, axes = plt.subplots(ncols=nb_of_channels, nrows=nb_of_channels, squeeze=False, figsize=(12, 12))
 
-    for i, ch_pair in enumerate(data.channel_permutations):
-
-        positions_map = np.asarray([p[0] for p in data.distances[i]])
-        distances_map = np.asarray([d[1] for d in data.distances[i]])
+    for p, dist in zip(distances):
+        positions_map = np.asarray([p[0] for p in distances[i]])
+        distances_map = np.asarray([d[1] for d in distances[i]])
         grid_x, grid_y = np.mgrid[0:x_dim:1, 0:y_dim:1]
         interpolated = griddata(positions_map, distances_map, (grid_x, grid_y), method='cubic')
 
         ax = axes.ravel()
+
+    plt.show()
 
 
 def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_stack):
@@ -114,8 +116,6 @@ def main_local():
                          x_dim=x_size,
                          y_dim=y_size)
 
-    # fig.colorbar(interpolated.T)
-
     # out = metrics.analise_distances_matrix(positions)
 
 
@@ -148,6 +148,9 @@ def main_omero(image_id=714441):
                          spots_properties=spots_properties,
                          spots_positions=spots_positions,
                          labels_stack=labels_stack)
+
+    plot_distances_maps(distances=spots_distances,
+                        )
 
 
 if __name__ == '__main__':

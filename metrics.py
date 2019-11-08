@@ -142,7 +142,6 @@ def compute_distances_matrix(positions, pixel_size=None):
     Like so:
     [((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]
     """
-
     # Container for results
     distances = list()
 
@@ -187,9 +186,9 @@ def _radial_mean(image, bins=None):
     if not bins:
         bins = 200
     size_x, size_y = image.shape
-    X, Y = np.ogrid[0:size_x, 0:size_y]
+    x, y = np.ogrid[0:size_x, 0:size_y]
 
-    r = np.hypot(X - size_x / 2, Y - size_y / 2)
+    r = np.hypot(x - size_x / 2, y - size_y / 2)
 
     rbin = (bins * r / r.max()).astype(np.int)
     radial_mean = ndimage.mean(image, labels=rbin, index=np.arange(1, rbin.max() + 1))
@@ -270,4 +269,3 @@ if __name__ == '__main__':
     plt.show()
 
     pass
-
