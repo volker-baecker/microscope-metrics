@@ -34,12 +34,15 @@ import logging
 #         # TODO: implement drift for a time dimension
 
 
-def _segment_single_channel(channel, min_distance, method='local_max', hysteresis_levels=(.7, 1.0)):
+def _segment_single_channel(channel, min_distance, sigma, method, hysteresis_levels):
     """Segment a given channel (3D numpy array) to find PSF-like spots"""
     threshold = threshold_otsu(channel)
 
     # TODO: Threshold be a sigma passed here
-    gauss_filtered = gaussian(np.copy(channel), (3, 3, 1))
+    gauss_filtered = gaussian(image=channel,
+                              multichannel=False,
+                              sigma=sigma,
+                              preserve_range=True)
 
     if method == 'hysteresis':  # We may try here hysteresis threshold
         thresholded = apply_hysteresis_threshold(gauss_filtered,
@@ -50,7 +53,7 @@ def _segment_single_channel(channel, min_distance, method='local_max', hysteresi
     elif method == 'local_max':  # We are applying a local maxima algorithm
         peaks = peak_local_max(gauss_filtered,
                                min_distance=min_distance,
-                               threshold_abs=(threshold * .2),
+                               threshold_abs=(threshold * .5),
                                exclude_border=True,
                                indices=False
                                )
@@ -68,19 +71,20 @@ def _segment_single_channel(channel, min_distance, method='local_max', hysteresi
     return label(cleared)
 
 
-def segment_image(image, min_distance=30, method='local_max', hysteresis_levels=(.7, 1.0)):
+def segment_image(image, min_distance=20, sigma=(1, 2, 2), method='local_max', hysteresis_levels=(.6, .9)):
     """Segment an image and return a labels object"""
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
-    for c in range(image.shape[1]):
-        labels_image[..., c] = _segment_single_channel(image[..., c],
-                                                       min_distance,
-                                                       method,
-                                                       hysteresis_levels)
+    for c in range(image.shape[2]):  # TODO: Deal with Time here
+        labels_image[..., c, :, :] = _segment_single_channel(image[0, :, c, :, :],
+                                                             min_distance=min_distance,
+                                                             sigma=sigma,
+                                                             method=method,
+                                                             hysteresis_levels=hysteresis_levels)
     return labels_image
 
 
-def _compute_channel_spots_properties(channel, label_channel, pixel_size=None):
+def _compute_channel_spots_properties(channel, label_channel, remove_center_cross, pixel_size=None):
     """Analyzes and extracts the properties of a single channel"""
 
     ch_properties = list()
@@ -96,6 +100,15 @@ def _compute_channel_spots_properties(channel, label_channel, pixel_size=None):
                               'mean_intensity': region.mean_intensity,
                               'min_intensity': region.min_intensity
                               })
+    if remove_center_cross:  # Argolight spots pattern contains a central cross that we might want to remove
+        largest_area = 0
+        largest_region = None
+        for region in ch_properties:
+            if region['area'] > largest_area:  # We assume the cross is the largest area
+                largest_area = region['area']
+                largest_region = region
+        if largest_region:
+            ch_properties.remove(largest_region)
     ch_positions = np.array([x['weighted_centroid'] for x in ch_properties])
     if pixel_size:
         ch_positions = ch_positions[0:] * pixel_size
@@ -103,14 +116,16 @@ def _compute_channel_spots_properties(channel, label_channel, pixel_size=None):
     return ch_properties, ch_positions
 
 
-def compute_spots_properties(image, labels):
+def compute_spots_properties(image, labels, remove_center_cross=True):
     """Computes a number of properties for the PSF-like spots found on an image provided they are segmented"""
-    # TODO: Verify dimmensions of image and labels are the same
+    # TODO: Verify dimensions of image and labels are the same
     properties = list()
     positions = list()
 
-    for c in range(image.shape[1]):
-        pr, pos = _compute_channel_spots_properties(image[:, c, ...], labels[:, c, ...])
+    for c in range(image.shape[2]):  # TODO: Deal with Time here
+        pr, pos = _compute_channel_spots_properties(image[0, :, c, :, :],
+                                                    labels[0, :, c, :, :],
+                                                    remove_center_cross=remove_center_cross)
         properties.append(pr)
         positions.append(pos)
 
@@ -183,7 +198,6 @@ def _radial_mean(image, bins=None):
 
 
 def _channel_fft_2d(channel):
-    # channel_fft = np.fft.rfftn(channel)
     channel_fft = np.fft.rfft2(channel)
     channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), axes=1)
     return channel_fft_magnitude
@@ -195,8 +209,8 @@ def fft_2d(image):
                           image.shape[2],
                           image.shape[3] // 2 + 1),
                    dtype='float64')
-    for c in range(image.shape[1]):
-        fft[c, ...] = _channel_fft_2d(image[:, c, ...])
+    for c in range(image.shape[2]):
+        fft[c, :, :] = _channel_fft_2d(image[..., c, :, :])
 
     return fft
 
@@ -208,13 +222,14 @@ def _channel_fft_3d(channel):
 
 
 def fft_3d(image):
-    fft = np.zeros(shape=(image.shape[1],
-                          image.shape[0],
+    fft = np.zeros(shape=(image.shape[0],
+                          image.shape[1],
                           image.shape[2],
-                          image.shape[3] // 2 + 1),
+                          image.shape[3],
+                          image.shape[4] // 2 + 1),  # We only compute the real part of the FFT
                    dtype='float64')
-    for c in range(image.shape[1]):
-        fft[c, ...] = _channel_fft_3d(image[:, c, ...])
+    for c in range(image.shape[-3]):
+        fft[..., c, :, :] = _channel_fft_3d(image[..., c, :, :])
 
     return fft
 
