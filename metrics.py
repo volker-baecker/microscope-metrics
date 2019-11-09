@@ -5,6 +5,7 @@ from skimage.filters import threshold_otsu, apply_hysteresis_threshold
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square, cube, octahedron, ball
+from skimage.feature import peak_local_max
 from scipy.spatial.distance import cdist
 import numpy as np
 from itertools import permutations
@@ -30,11 +31,21 @@ class BeadsField2D:
         # TODO: reshape image if dimensions is not default
         # TODO: implement drift for a time dimension
 
-    def segment_channel(self, channel):
-        thresh = threshold_otsu(channel)
+    def channel_local_max(self, channel):
+        threshold = threshold_otsu(channel)
 
-        # We may try here hysteresis thresholding
-        thresholded = apply_hysteresis_threshold(channel, low=(thresh * .9), high=(thresh * 1.5))
+        peaks = peak_local_max(channel,
+                               min_distance=10,
+                               threshold_abs=threshold,
+                               indices=False)
+
+        return peaks
+
+
+    def segment_channel(self, channel):
+        threshold = threshold_otsu(channel)
+
+        thresholded = apply_hysteresis_threshold(channel, low=(threshold * .9), high=(threshold * 1.5))
 
         bw = closing(thresholded, cube(50))
         cleared = clear_border(bw)
