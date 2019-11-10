@@ -9,17 +9,26 @@ from scipy.interpolate import griddata
 from credentials import USER, PASSWORD
 
 
-def plot_distances_maps(distances, nb_of_channels, x_dim, y_dim):
+def plot_distances_maps(distances, x_dim, y_dim):
     """[((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]"""
+    nb_of_channels = 4
     fig, axes = plt.subplots(ncols=nb_of_channels, nrows=nb_of_channels, squeeze=False, figsize=(12, 12))
 
-    for p, dist in zip(distances):
-        positions_map = np.asarray([p[0] for p in distances[i]])
-        distances_map = np.asarray([d[1] for d in distances[i]])
+    for p in distances:
+        positions_map = np.asarray([(x, y) for (z, x, y) in p['coord_of_A']])
+        distances_map = np.asarray(p['dist_3d'])
+
         grid_x, grid_y = np.mgrid[0:x_dim:1, 0:y_dim:1]
         interpolated = griddata(positions_map, distances_map, (grid_x, grid_y), method='cubic')
 
         ax = axes.ravel()
+        ax[(p['channels'][0] * 4) + p['channels'][1]].imshow(np.flipud(interpolated),
+                                                             extent=(0, x_dim, y_dim, 0),
+                                                             origin='lower',
+                                                             cmap=cm.hot,
+                                                             # vmin=np.amin(raw_stack[0, :, c, :, :]),
+                                                             # vmax=np.amax(raw_stack[0, :, c, :, :])
+                                                             )
 
     plt.show()
 
@@ -150,7 +159,10 @@ def main_omero(image_id=714441):
                          labels_stack=labels_stack)
 
     plot_distances_maps(distances=spots_distances,
-                        )
+                        x_dim=1024,
+                        y_dim=1024)
+
+    conn.clone()
 
 
 if __name__ == '__main__':

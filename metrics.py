@@ -150,10 +150,10 @@ def compute_distances_matrix(positions, pixel_size=None):
 
     channel_permutations = list(permutations(range(len(positions)), 2))
 
-    # Create a space to hold the distances. For every permutation (a, b) we want to store:
-    # Positions of a (indexes 0:2)
-    # Distance to the closest spot in b (index 3)
-    # Index of the nearest spot in b (index 4)
+    # Create a space to hold the distances. For every channel permutation (a, b) we want to store:
+    # Coordinates of a
+    # Distance to the closest spot in b
+    # Index of the nearest spot in b
 
     if not pixel_size:
         pixel_size = np.array((1, 1, 1))
@@ -163,17 +163,20 @@ def compute_distances_matrix(positions, pixel_size=None):
 
     for a, b in channel_permutations:
         # TODO: Try this
+        # TODO: Make explicit arguments of cdist
         distances_matrix = cdist(positions[a], positions[b], w=pixel_size)
 
-        pairwise_distances = list()
+        pairwise_distances = {'channels': (a, b),
+                              'coord_of_A': list(),
+                              'dist_3d': list(),
+                              'index_of_B': list()
+                              }
         for p, d in zip(positions[a], distances_matrix):
-            single_distance = list()
-            single_distance.append(tuple(p))  # Adding the coordinates of spot in ch_a
-            single_distance.append(d.min())  # Appending the 3D distance
-            single_distance.append(d.argmin())  # Appending the index of the closest spot in ch_b
-            pairwise_distances.append(single_distance)
+            pairwise_distances['coord_of_A'].append(tuple(p))
+            pairwise_distances['dist_3d'].append(d.min())
+            pairwise_distances['index_of_B'].append(d.argmin())
 
-        distances.append(((a, b), pairwise_distances))
+        distances.append(pairwise_distances)
 
     return distances
 
