@@ -141,6 +141,18 @@ def main_omero(image_id=714441):
     c_size = image.getSizeC()
     t_size = image.getSizeT()
 
+    pixels = image.getPrimaryPixels()
+
+    x_pixel_size = pixels.getPhysicalSizeX().getValue()
+    y_pixel_size = pixels.getPhysicalSizeY().getValue()
+    z_pixel_size = pixels.getPhysicalSizeZ().getValue()
+
+    x_pixel_size_unit = pixels.getPhysicalSizeX().getUnit().name
+    y_pixel_size_unit = pixels.getPhysicalSizeY().getUnit().name
+    z_pixel_size_unit = pixels.getPhysicalSizeZ().getUnit().name
+
+    # TODO: warn if xyz units are not the same
+
     raw_stack = get_5d_stack(image)
 
     labels_stack = metrics.segment_image(image=raw_stack,
@@ -151,7 +163,11 @@ def main_omero(image_id=714441):
 
     spots_properties, spots_positions = metrics.compute_spots_properties(raw_stack, labels_stack)
 
-    spots_distances = metrics.compute_distances_matrix(spots_positions)
+    spots_distances = metrics.compute_distances_matrix(positions=spots_positions,
+                                                       sigma=2.0,
+                                                       pixel_size=(z_pixel_size,
+                                                                   x_pixel_size,
+                                                                   y_pixel_size))
 
     plot_homogeneity_map(raw_stack=raw_stack,
                          spots_properties=spots_properties,

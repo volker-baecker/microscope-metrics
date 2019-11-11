@@ -132,7 +132,7 @@ def compute_spots_properties(image, labels, remove_center_cross=True):
     return properties, positions
 
 
-def compute_distances_matrix(positions, pixel_size=None):
+def compute_distances_matrix(positions, sigma, pixel_size=None):
     """Calculates Mutual Closest Neighbour distances between all channels and returns the values as
     a list of tuples where the first element is a tuple with the channel combination (ch_A, ch_B) and the second is
     a list of pairwise measurements where, for every spot s in ch_A:
@@ -142,6 +142,7 @@ def compute_distances_matrix(positions, pixel_size=None):
     Like so:
     [((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]
     """
+    # TODO: Correct documentation
     # Container for results
     distances = list()
 
@@ -172,14 +173,17 @@ def compute_distances_matrix(positions, pixel_size=None):
                               'index_of_B': list()
                               }
         for p, d in zip(positions[a], distances_matrix):
-            pairwise_distances['coord_of_A'].append(tuple(p))
-            pairwise_distances['dist_3d'].append(d.min())
-            pairwise_distances['index_of_B'].append(d.argmin())
+            if d.min() < sigma:
+                pairwise_distances['coord_of_A'].append(tuple(p))
+                pairwise_distances['dist_3d'].append(d.min())
+                pairwise_distances['index_of_B'].append(d.argmin())
 
         distances.append(pairwise_distances)
 
     return distances
 
+
+def _compute_channel_resolution(channel, axis)
 
 def _radial_mean(image, bins=None):
     """Computes the radial mean from an input 2d image.
