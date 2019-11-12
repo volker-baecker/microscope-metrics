@@ -5,8 +5,10 @@ from skimage.filters import threshold_otsu, apply_hysteresis_threshold, gaussian
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square, cube, octahedron, ball
+from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
 from skimage.feature import peak_local_max
 from scipy.spatial.distance import cdist
+from scipy.signal import find_peaks
 from scipy import ndimage
 import numpy as np
 from itertools import permutations
@@ -183,7 +185,61 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
     return distances
 
 
-def _compute_channel_resolution(channel, axis)
+def _compute_channel_resolution(channel, axis, do_angle_refinement=False):
+    """Computes the resolution on a pattern of lines with increasing separation"""
+    # find the most contrasted z-slice
+    z_stdev = np.std(channel, axis=(1, 2))
+    z_focus = np.argmax(z_stdev)
+    focus_slice = channel[z_focus]  # TODO: verify 2 dimensions
+
+    # TODO: verify angle and correct
+    if do_angle_refinement:
+        # Set a precision of 0.1 degree.
+        tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 1800)
+        h, theta, d = hough_line(focus_slice, theta=tested_angles)
+
+    # project parallel to the axis of interest
+    # parallel_prj = np.mean(focus_slice, axis=axis)
+
+    # get the center and width of the lines pattern
+    # TODO: properly get the best of the lines
+
+    # Cut a band of that found peak
+    # Best we can do now is just to cut a band in the center
+    # We create a profiles along which we average signal
+    axis_len = focus_slice.shape[-axis]
+    weight_profile = np.zeros(axis_len)
+    weight_profile[int(axis_len / 2.5):int(axis_len / 1.5)] = 1
+    res_profile = np.average(focus_slice,
+                             axis=-axis,
+                             weights=weight_profile)
+
+    normalized_res_profile = (res_profile - np.min(res_profile))/np.ptp(res_profile)
+
+    # Find peaks: We implement Abbe and Rayleigh limits
+    peaks, properties = find_peaks(normalized_res_profile,
+                                   height=.3,
+                                   distance=2,
+                                   prominence=.2,
+                                   )
+
+    return normalized_res_profile, peaks, properties
+
+
+def compute_resolution(image, axis):
+    profiles = list()
+    peaks = list()
+    peaks_properties = list()
+
+    for c in range(image.shape[2]):  # TODO: Deal with Time here
+        prof, pk, pr = _compute_channel_resolution(image[0, :, c, :, :],
+                                                   axis=axis)
+        profiles.append(prof)
+        peaks.append(pk)
+        peaks_properties.append(pr)
+
+    return profiles, peaks, peaks_properties
+
 
 def _radial_mean(image, bins=None):
     """Computes the radial mean from an input 2d image.

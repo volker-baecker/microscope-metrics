@@ -5,7 +5,7 @@ from itertools import product, permutations
 import metrics
 import numpy as np
 from scipy.interpolate import griddata
-# import scipy.spatial.qhull.QhullError as QhullError
+from omero.gateway import BlitzGateway
 from credentials import USER, PASSWORD
 
 
@@ -74,6 +74,20 @@ def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_st
     plt.show()
 
 
+def plot_peaks(profiles, peaks, properties):
+    fig, axes = plt.subplots(ncols=1, nrows=len(profiles), squeeze=False, figsize=(12, 48))
+
+    for i, profile in enumerate(profiles):
+
+        ax = axes.ravel()
+
+        ax[i].plot(profile)
+        ax[i].plot(peaks[i], profile[peaks[i]], "x")
+        ax[i].vlines(x=peaks[i], ymin=profile[peaks[i]] - properties[i]["prominences"],
+                   ymax=profile[peaks[i]], color="C1")
+    plt.show()
+
+
 def get_5d_stack(image):
     # We will further work with stacks of the shape TZCXY
     image_shape = (image.getSizeT(),
@@ -128,12 +142,7 @@ def main_local():
     # out = metrics.analise_distances_matrix(positions)
 
 
-def main_omero(image_id=714441):
-    from omero.gateway import BlitzGateway
-
-    conn = BlitzGateway(USER, PASSWORD, port=4064, host="omero.mri.cnrs.fr")
-    conn.connect()
-    image = conn.getObject("Image", image_id)
+def analyze_spots(image):
 
     x_size = image.getSizeX()
     y_size = image.getSizeY()
@@ -178,8 +187,52 @@ def main_omero(image_id=714441):
                         x_dim=1024,
                         y_dim=1024)
 
-    conn.clone()
+
+def analyze_resolution(image, axis):
+
+    x_size = image.getSizeX()
+    y_size = image.getSizeY()
+    z_size = image.getSizeZ()
+    c_size = image.getSizeC()
+    t_size = image.getSizeT()
+
+    pixels = image.getPrimaryPixels()
+
+    x_pixel_size = pixels.getPhysicalSizeX().getValue()
+    y_pixel_size = pixels.getPhysicalSizeY().getValue()
+    z_pixel_size = pixels.getPhysicalSizeZ().getValue()
+
+    x_pixel_size_unit = pixels.getPhysicalSizeX().getUnit().name
+    y_pixel_size_unit = pixels.getPhysicalSizeY().getUnit().name
+    z_pixel_size_unit = pixels.getPhysicalSizeZ().getUnit().name
+
+    # TODO: warn if xyz units are not the same
+
+    raw_stack = get_5d_stack(image)
+
+    profiles, peaks, peak_properties = metrics.compute_resolution(raw_stack, axis=axis)
+
+    plot_peaks(profiles, peaks, peak_properties)
+
+
+def main(spots_image_id=486589,
+         vertical_stripes_image_id=486591,
+         horizontal_stripes_image_id=486592):
+    conn = BlitzGateway(USER, PASSWORD, port=4064, host="omero.mri.cnrs.fr")
+    conn.connect()
+
+    # spots_image = conn.getObject("Image", spots_image_id)
+    # analyze_spots(spots_image)
+
+    vertical_res_image = conn.getObject("Image", vertical_stripes_image_id)
+    analyze_resolution(vertical_res_image, 2)
+
+    horizontal_res_image = conn.getObject("Image", horizontal_stripes_image_id)
+    analyze_resolution(horizontal_res_image, 1)
+
+    conn.close()
 
 
 if __name__ == '__main__':
-    main_omero()
+    main()
+
