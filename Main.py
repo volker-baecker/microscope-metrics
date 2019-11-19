@@ -75,7 +75,7 @@ def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_st
 
 
 def plot_peaks(profiles, peaks, properties):
-    fig, axes = plt.subplots(ncols=1, nrows=len(profiles), squeeze=False, figsize=(12, 48))
+    fig, axes = plt.subplots(ncols=1, nrows=len(profiles), squeeze=False, figsize=(48, 24))
 
     for i, profile in enumerate(profiles):
 
@@ -219,7 +219,7 @@ def main(spots_image_id=486589,
          vertical_stripes_image_id=486591,
          horizontal_stripes_image_id=486592):
     conn = BlitzGateway(USER, PASSWORD, port=4064, host="omero.mri.cnrs.fr")
-    conn.connect()
+    conn.connect()  # TODO: assert this somehow
 
     # spots_image = conn.getObject("Image", spots_image_id)
     # analyze_spots(spots_image)

@@ -15,29 +15,9 @@ from itertools import permutations
 from statistics import median
 import logging
 
-# class BeadsField2D:
-#     """
-#     Docs in here
-#     """
-#     def __init__(self,
-#                  image: np.ndarray,
-#                  dimensions: tuple = ('z', 'c', 'x', 'y'),
-#                  pixel_size_um = None,
-#                  ):
-#         self.image = image
-#         self.dimensions = dimensions
-#         self.pixel_size_um = pixel_size_um
-#         self.labels_image = np.zeros(self.image.shape, dtype=np.uint16)
-#         self.properties = list()
-#         self.positions = list()
-#         self.channel_permutations = list()
-#         self.distances = list()
-#         # TODO: reshape image if dimensions is not default
-#         # TODO: implement drift for a time dimension
-
 
 def _segment_single_channel(channel, min_distance, sigma, method, hysteresis_levels):
-    """Segment a given channel (3D numpy array) to find PSF-like spots"""
+    """Segment a channel (3D numpy array)"""
     threshold = threshold_otsu(channel)
 
     # TODO: Threshold be a sigma passed here
@@ -220,7 +200,7 @@ def _compute_channel_resolution(channel, axis, do_angle_refinement=False):
     peaks, properties = find_peaks(normalized_res_profile,
                                    height=.3,
                                    distance=2,
-                                   prominence=.2,
+                                   prominence=.1,
                                    )
 
     return normalized_res_profile, peaks, properties
