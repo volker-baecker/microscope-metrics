@@ -6,7 +6,7 @@ import metrics
 import numpy as np
 from scipy.interpolate import griddata
 from omero.gateway import BlitzGateway
-from credentials import USER, PASSWORD
+from credentials import HOST, PORT, USER, PASSWORD, GROUP
 
 
 def plot_distances_maps(distances, x_dim, y_dim):
@@ -215,14 +215,18 @@ def analyze_resolution(image, axis):
     plot_peaks(profiles, peaks, peak_properties)
 
 
-def main(spots_image_id=486589,
-         vertical_stripes_image_id=486591,
-         horizontal_stripes_image_id=486592):
-    conn = BlitzGateway(USER, PASSWORD, port=4064, host="omero.mri.cnrs.fr")
+def main(spots_image_id=7,
+         vertical_stripes_image_id=3,
+         horizontal_stripes_image_id=5):
+    conn = BlitzGateway(username=USER,
+                        passwd=PASSWORD,
+                        group=GROUP,
+                        port=PORT,
+                        host=HOST)
     conn.connect()  # TODO: assert this somehow
 
-    # spots_image = conn.getObject("Image", spots_image_id)
-    # analyze_spots(spots_image)
+    spots_image = conn.getObject("Image", spots_image_id)
+    analyze_spots(spots_image)
 
     vertical_res_image = conn.getObject("Image", vertical_stripes_image_id)
     analyze_resolution(vertical_res_image, 2)
