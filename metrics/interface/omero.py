@@ -2,11 +2,12 @@ from omero.gateway import BlitzGateway
 import numpy as np
 from operator import mul
 from itertools import product
+from functools import reduce
 
 
 class Connection(BlitzGateway):
-    def __init__(self, args):
-        super(self).__init__()
+    def __init__(self, kwargs):
+        super().__init__(kwargs)
 
 
 def get_image(connection, image_id):
