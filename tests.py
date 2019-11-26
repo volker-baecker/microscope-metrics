@@ -9,7 +9,7 @@ import unittest
 # if __name__ == '__main__':
 #     unittest.main()
 
-from omero.gateway import BlitzGateway
+from metrics.interface import omero
 import imageio
 from metrics.interface import omero
 from metrics.tools import segment_image, compute_distances_matrix, compute_spots_properties
@@ -84,7 +84,10 @@ def analyze_resolution(image, axis):
 
     raw_stack = omero.get_5d_stack(image)
 
-    profiles, peaks, peak_properties = compute_resolution(raw_stack, axis=axis)
+    profiles, peaks, peak_properties, resolution_values = compute_resolution(image=raw_stack,
+                                                                             axis=axis,
+                                                                             prominence=.2,
+                                                                             do_angle_refinement=False)
 
     plot.plot_peaks(profiles, peaks, peak_properties)
 
@@ -92,12 +95,11 @@ def analyze_resolution(image, axis):
 def main(spots_image_id=7,
          vertical_stripes_image_id=3,
          horizontal_stripes_image_id=5):
-    conn = BlitzGateway(username=USER,
-                        passwd=PASSWORD,
-                        group=GROUP,
-                        port=PORT,
-                        host=HOST)
-    conn.connect()  # TODO: assert this somehow
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
 
     # spots_image = omero.get_image(connection=conn,
     #                               image_id=spots_image_id)

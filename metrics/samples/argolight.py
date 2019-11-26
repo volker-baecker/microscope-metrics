@@ -39,13 +39,19 @@ def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=F
     peaks, properties = find_peaks(normalized_profile,
                                    height=.3,
                                    distance=2,
-                                   prominence=.1,
+                                   prominence=prominence,
                                    )
 
-    return normalized_profile, peaks, properties
+    # Find the closest peaks to return it as a measure of resolution
+    peaks_distances = list()
+    for a, b in zip(peaks[0:-2], peaks[1:-1]):
+        peaks_distances.append(abs(a - b))
+    res = min(peaks_distances)
+
+    return normalized_profile, peaks, properties, res
 
 
-def compute_resolution(image, axis, prominence=0.2):
+def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
     profiles = list()
     peaks = list()
     peaks_properties = list()
@@ -53,14 +59,13 @@ def compute_resolution(image, axis, prominence=0.2):
     resolution_method = 'Rayleigh'
 
     for c in range(image.shape[2]):  # TODO: Deal with Time here
-        prof, pk, pr, res = _compute_channel_resolution(image[0, :, c, :, :],
+        prof, pk, pr, res = _compute_channel_resolution(channel=image[0, :, c, :, :],
                                                         axis=axis,
-                                                        prominence)
+                                                        prominence=prominence,
+                                                        do_angle_refinement=do_angle_refinement)
         profiles.append(prof)
         peaks.append(pk)
         peaks_properties.append(pr)
         resolution_values.append(res)
 
-
-
-    return profiles, peaks, peaks_properties
+    return profiles, peaks, peaks_properties, resolution_values
