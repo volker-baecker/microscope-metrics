@@ -124,6 +124,110 @@ def get_5d_stack(image):
     return stack
 
 
+# Creating projects and datasets
+
+def create_project(conn, project_name):
+    new_project = gw.ProjectWrapper(conn)
+    new_project.setName(rtypes.rstring(project_name))
+    new_project.save()
+
+    return new_project
+
+
+def create_dataset(conn, dataset_name, parent_project=None):
+    new_dataset = gw.DatasetWrapper(conn)
+    new_dataset.setName(rtypes.rstring(dataset_name))
+    new_dataset.save()
+    if parent_project:
+        link = model.ProjectDatasetLinkI()
+        link.setParent(parent_project._obj)
+        link.setChild(new_dataset._obj)
+        conn.getUpdateService().saveObject(link)
+
+    return new_dataset
+
+
+# Deleting data
+
+def _delete_object(conn, object_type, objects, delete_annotations, delete_children, wait, callback=None):
+    if not isinstance(objects, list) and not isinstance(object, int):
+        obj_ids = [objects.getId()]
+    elif not isinstance(objects, list):
+        obj_ids = [objects]
+    elif isinstance(objects[0], int):
+        obj_ids = objects
+    else:
+        obj_ids = [o.getId() for o in objects]
+
+    try:
+        conn.deleteObjects(object_type,
+                           obj_ids=obj_ids,
+                           deleteAnns=delete_annotations,
+                           deleteChildren=delete_children,
+                           wait=wait)
+        return True
+    except Exception as e:
+        print e
+        return False
+
+
+def delete_project(conn, projects, delete_annotations=False, delete_children=False):
+    _delete_object(conn=conn,
+                   object_type="Project",
+                   objects=projects,
+                   delete_annotations=delete_annotations,
+                   delete_children=delete_children,
+                   wait=False)
+
+    Retrieve callback and wait until delete completes
+
+# This is not necessary for the Delete to complete. Can be used
+# if you want to know when delete is finished or if there were any errors
+handle = conn.deleteObjects("Project", [project_id])
+cb = omero.callbacks.CmdCallbackI(conn.c, handle)
+print "Deleting, please wait."
+while not cb.block(500):
+    print "."
+err = isinstance(cb.getResponse(), omero.cmd.ERR)
+print "Error?", err
+if err:
+    print cb.getResponse()
+cb.close(True)      # close handle too
+
+
+
+# Getting information on projects and datasets
+
+def get_all_projects(conn, opts={'order_by':'loser(obj.name)'}):
+    projects = conn.getObjects("Project", opts=opts)
+
+    return projects
+
+
+def get_project_datasets(conn, project):
+    datasets = project.listChildren()
+
+    return datasets
+
+
+def get_dataset_images(conn, dataset):
+    images = dataset.listChildren()
+
+    return images
+
+
+def get_orphan_datasets(conn):
+    datasets = conn.getObjects("Dataset", opts={'orphaned': True})
+
+    return datasets
+
+
+def get_orphan_images(conn):
+    images = conn.getObjects("Image", opts={'orphaned': True})
+
+    return images
+
+
 # In this section we give some convenience functions to send data back to OMERO #
 
 def create_annotation_tag(conn, tag_string):
@@ -257,6 +361,7 @@ def _rgba_to_int(red, green, blue, alpha=255):
     rgba_int = sum([r, g, b, a])
     if rgba_int > (2**31-1):       # convert to signed 32-bit int
         rgba_int = rgba_int - 2**32
+
     return rgba_int
 
 
@@ -326,13 +431,8 @@ def create_shape_ellipse(x_pos, y_pos, x_radius, y_radius, z_pos, t_pos,
     return ellipse
 
 
-def create_roi_rectangle(conn, ):
-    pass
-
-
 def create_annotation_roi_mask(conn, mask_array, bits_per_pixel):
     mask = MaksI()
-
 
 
 def link_annotation(object_wrapper, annotation_wrapper):
