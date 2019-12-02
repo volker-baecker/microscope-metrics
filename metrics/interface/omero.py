@@ -10,6 +10,8 @@ from functools import reduce
 from json import dumps
 from random import choice
 from string import ascii_letters
+import math
+import struct
 
 COLUMN_TYPES = {'string': grid.StringColumn,
                 'long': grid.LongColumn,
@@ -167,7 +169,7 @@ def _delete_object(conn, object_type, objects, delete_annotations, delete_childr
                            wait=wait)
         return True
     except Exception as e:
-        print e
+        print(e)
         return False
 
 
@@ -179,21 +181,20 @@ def delete_project(conn, projects, delete_annotations=False, delete_children=Fal
                    delete_children=delete_children,
                    wait=False)
 
-    Retrieve callback and wait until delete completes
+  # Retrieve callback and wait until delete completes
 
-# This is not necessary for the Delete to complete. Can be used
-# if you want to know when delete is finished or if there were any errors
-handle = conn.deleteObjects("Project", [project_id])
-cb = omero.callbacks.CmdCallbackI(conn.c, handle)
-print "Deleting, please wait."
-while not cb.block(500):
-    print "."
-err = isinstance(cb.getResponse(), omero.cmd.ERR)
-print "Error?", err
-if err:
-    print cb.getResponse()
-cb.close(True)      # close handle too
-
+# # This is not necessary for the Delete to complete. Can be used
+# # if you want to know when delete is finished or if there were any errors
+# handle = conn.deleteObjects("Project", [project_id])
+# cb = omero.callbacks.CmdCallbackI(conn.c, handle)
+# print "Deleting, please wait."
+# while not cb.block(500):
+#     print "."
+# err = isinstance(cb.getResponse(), omero.cmd.ERR)
+# print "Error?", err
+# if err:
+#     print cb.getResponse()
+# cb.close(True)      # close handle too
 
 
 # Getting information on projects and datasets
@@ -365,20 +366,31 @@ def _rgba_to_int(red, green, blue, alpha=255):
     return rgba_int
 
 
+def _set_shape_properties(shape, name=None,
+                          fill_color=(10, 10, 10, 255),
+                          stroke_color=(255, 255, 255, 255),
+                          stroke_width=1, ):
+    if name:
+        shape.setTextValue(name)
+    shape.setFillColor(_rgba_to_int(*fill_color))
+    shape.setStrokeColor(_rgba_to_int(*stroke_color))
+    shape.setStrokeWidth(stroke_width)
+    # shape.setStrokeWidth(model.LengthI(stroke_width, model.enums.UnitsLength.PIXEL))
+
+
 def create_shape_point(x_pos, y_pos, z_pos, t_pos, point_name=None):
     point = model.PointI()
     point.x = rtypes.rdouble(x_pos)
     point.y = rtypes.rdouble(y_pos)
     point.theZ = rtypes.rint(z_pos)
     point.theT = rtypes.rint(t_pos)
-    if point_name:
-        point.textValue = rtypes.rstring(point_name)
+    _set_shape_properties(point, name=point_name)
 
     return point
 
 
 def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos,
-                      line_name=None, stroke_color=(255, 255, 255, 255)):
+                      line_name=None, stroke_color=(255, 255, 255, 255), stroke_width=1):
     line = model.LineI()
     line.x1 = rtypes.rdouble(x1_pos)
     line.x2 = rtypes.rdouble(x2_pos)
@@ -386,17 +398,17 @@ def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos,
     line.y2 = rtypes.rdouble(y2_pos)
     line.theZ = rtypes.rint(z_pos)
     line.theT = rtypes.rint(t_pos)
-    if line_name:
-        line.textValue = rtypes.rstring(line_name)
-    line.strokeColor = rtypes.rint(_rgba_to_int(*stroke_color))
-
+    _set_shape_properties(line, name=line_name,
+                          stroke_color=stroke_color,
+                          stroke_width=stroke_width)
     return line
 
 
 def create_shape_rectangle(x_pos, y_pos, width, height, z_pos, t_pos,
                            rectangle_name=None,
                            fill_color=(10, 10, 10, 255),
-                           stroke_color=(255, 255, 255, 255)):
+                           stroke_color=(255, 255, 255, 255),
+                           stroke_width=1):
     rect = model.RectangleI()
     rect.x = rtypes.rdouble(x_pos)
     rect.y = rtypes.rdouble(y_pos)
@@ -404,38 +416,93 @@ def create_shape_rectangle(x_pos, y_pos, width, height, z_pos, t_pos,
     rect.height = rtypes.rdouble(height)
     rect.theZ = rtypes.rint(z_pos)
     rect.theT = rtypes.rint(t_pos)
-    if rectangle_name:
-        rect.textValue = rtypes.rstring(rectangle_name)
-    rect.fillColor = rtypes.rint(_rgba_to_int(*fill_color))
-    rect.strokeColor = rtypes.rint(_rgba_to_int(*stroke_color))
-
+    _set_shape_properties(shape=rect, name=rectangle_name,
+                          fill_color=fill_color,
+                          stroke_color=stroke_color,
+                          stroke_width=stroke_width)
     return rect
 
 
 def create_shape_ellipse(x_pos, y_pos, x_radius, y_radius, z_pos, t_pos,
                          ellipse_name=None,
                          fill_color=(10, 10, 10, 255),
-                         stroke_color=(255, 255, 255, 255)):
+                         stroke_color=(255, 255, 255, 255),
+                         stroke_width=1):
     ellipse = model.EllipseI()
-    ellipse.x = rtypes.rdouble(x_pos)
-    ellipse.y = rtypes.rdouble(y_pos)
+    ellipse.setX(x_pos)
+    ellipse.setY(y_pos)  # TODO: setters and getters everywhere
     ellipse.radiusX = rtypes.rdouble(x_radius)
     ellipse.radiusY = rtypes.rdouble(y_radius)
     ellipse.theZ = rtypes.rint(z_pos)
     ellipse.theT = rtypes.rint(t_pos)
-    if ellipse_name:
-        ellipse.textValue = rtypes.rstring(ellipse_name)
-    ellipse.fillColor = rtypes.rint(_rgba_to_int(*fill_color))
-    ellipse.strokeColor = rtypes.rint(_rgba_to_int(*stroke_color))
-
+    _set_shape_properties(ellipse, name=ellipse_name,
+                          fill_color=fill_color,
+                          stroke_color=stroke_color,
+                          stroke_width=stroke_width)
     return ellipse
 
 
-def create_annotation_roi_mask(conn, mask_array, bits_per_pixel):
-    mask = MaksI()
+def create_shape_polygon(points_list, z_pos, t_pos,
+                         polygon_name=None,
+                         fill_color=(10, 10, 10, 255),
+                         stroke_color=(255, 255, 255, 255),
+                         stroke_width=1):
+    polygon = model.PolygonI()
+    points_str = "".join(["".join([str(x), ',', str(y), ', ']) for x, y in points_list])[:-2]
+    polygon.points = rtypes.rstring(points_str)
+    polygon.theZ = rtypes.rint(z_pos)
+    polygon.theT = rtypes.rint(t_pos)
+    _set_shape_properties(polygon, name=polygon_name,
+                          fill_color=fill_color,
+                          stroke_color=stroke_color,
+                          stroke_width=stroke_width)
+    return polygon
+
+
+def _pack_mask(mask):
+    mask_packed = mask.tostring()
+    bytes_per_pixel = mask.nbytes // mask.size
+    if bytes_per_pixel == 2:
+        divider = 16.0
+        format_string = "H"  # Unsigned short
+        byte_factor = 0.5
+    elif bytes_per_pixel == 1:
+        divider = 8.0
+        format_string = "B"  # Unsigned char
+        byte_factor = 1
+    else:
+        message = "Format %s not supported"
+        raise ValueError(message)
+    steps = math.ceil(len(mask_packed) / divider)
+    mask = []
+    for i in range(steps):
+        binary = mask_packed[i * int(divider):i * int(divider) + int(divider)]
+        format = str(int(byte_factor * len(binary))) + format_string
+        binary = struct.unpack(format, binary)
+        s = ""
+        for bit in binary:
+            s += str(bit)
+        mask.append(int(s, 2))
+    return bytearray(mask)
+
+
+def create_shape_mask(mask_array, x_pos, y_pos, z_pos, t_pos,
+                      mask_name=None,
+                      fill_color=(10, 10, 10, 255)):
+    mask = model.MaskI()
+    mask.setX(x_pos)
+    mask.setY(y_pos)
+    mask.setTheZ(z_pos)
+    mask.setTheT(t_pos)
+    mask.setWidth(mask_array.shape[0])
+    mask.setHeight(mask_array.shape[1])
+    mask.setFillColor(_rgba_to_int(fill_color))
+    if mask_name:
+        mask.setTextValue(mask_name)
+    mask.setBytes(_pack_mask(mask_array))
+
+    return mask
 
 
 def link_annotation(object_wrapper, annotation_wrapper):
     object_wrapper.linkAnnotation(annotation_wrapper)
-
-
