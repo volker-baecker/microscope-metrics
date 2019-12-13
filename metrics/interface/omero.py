@@ -459,31 +459,31 @@ def create_shape_polygon(points_list, z_pos, t_pos,
     return polygon
 
 
-def _pack_mask(mask):
-    mask_packed = mask.tostring()
-    bytes_per_pixel = mask.nbytes // mask.size
-    if bytes_per_pixel == 2:
-        divider = 16.0
-        format_string = "H"  # Unsigned short
-        byte_factor = 0.5
-    elif bytes_per_pixel == 1:
-        divider = 8.0
-        format_string = "B"  # Unsigned char
-        byte_factor = 1
-    else:
-        message = "Format %s not supported"
-        raise ValueError(message)
-    steps = math.ceil(len(mask_packed) / divider)
-    mask = []
-    for i in range(steps):
-        binary = mask_packed[i * int(divider):i * int(divider) + int(divider)]
-        format = str(int(byte_factor * len(binary))) + format_string
-        binary = struct.unpack(format, binary)
-        s = ""
-        for bit in binary:
-            s += str(bit)
-        mask.append(int(s, 2))
-    return bytearray(mask)
+# def _pack_mask(mask):
+#     mask_packed = mask.tostring()
+#     bytes_per_pixel = mask.nbytes // mask.size
+#     if bytes_per_pixel == 2:
+#         divider = 16.0
+#         format_string = "H"  # Unsigned short
+#         byte_factor = 0.5
+#     elif bytes_per_pixel == 1:
+#         divider = 8.0
+#         format_string = "B"  # Unsigned char
+#         byte_factor = 1
+#     else:
+#         message = "Format %s not supported"
+#         raise ValueError(message)
+#     steps = math.ceil(len(mask_packed) / divider)
+#     mask = []
+#     for i in range(steps):
+#         binary = mask_packed[i * int(divider):i * int(divider) + int(divider)]
+#         format = str(int(byte_factor * len(binary))) + format_string
+#         binary = struct.unpack(format, binary)
+#         s = ""
+#         for bit in binary:
+#             s += str(bit)
+#         mask.append(int(s, 2))
+#     return bytearray(mask)
 
 
 def create_shape_mask(mask_array, x_pos, y_pos, z_pos, t_pos,
@@ -496,10 +496,11 @@ def create_shape_mask(mask_array, x_pos, y_pos, z_pos, t_pos,
     mask.setTheT(t_pos)
     mask.setWidth(mask_array.shape[0])
     mask.setHeight(mask_array.shape[1])
-    mask.setFillColor(_rgba_to_int(fill_color))
+    mask.setFillColor(_rgba_to_int(*fill_color))
     if mask_name:
         mask.setTextValue(mask_name)
-    mask.setBytes(_pack_mask(mask_array))
+    mask_packed = np.packbits(mask_array)  # TODO: raise error when not boolean array
+    mask.setBytes(mask_packed.tobytes())
 
     return mask
 
