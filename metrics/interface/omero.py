@@ -1,6 +1,7 @@
 import omero.gateway as gw
 from omero.constants import metadata, namespaces
 from omero import model
+from omero.model import enums, LengthI
 from omero import grid
 from omero import rtypes
 import numpy as np
@@ -374,7 +375,7 @@ def _set_shape_properties(shape, name=None,
         shape.setTextValue(rtypes.rstring(name))
     shape.setFillColor(rtypes.rint(_rgba_to_int(*fill_color)))
     shape.setStrokeColor(rtypes.rint(_rgba_to_int(*stroke_color)))
-    shape.setStrokeWidth(rtypes.rint(stroke_width))
+    shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
     # shape.setStrokeWidth(model.LengthI(stroke_width, model.enums.UnitsLength.PIXEL))
 
 
