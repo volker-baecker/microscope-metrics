@@ -137,14 +137,16 @@ def create_project(conn, project_name):
     return new_project
 
 
-def create_dataset(conn, dataset_name, parent_project=None):
-    new_dataset = gw.DatasetWrapper(conn)
+def create_dataset(conn, dataset_name, dataset_description=None, parent_project=None):
+    new_dataset = model.DatasetI()
     new_dataset.setName(rtypes.rstring(dataset_name))
-    new_dataset.save()
+    if dataset_description:
+        new_dataset.setDescription(rtypes.rstring(dataset_description))
+    new_dataset = conn.getUpdateService().saveAndReturnObject(new_dataset)
     if parent_project:
         link = model.ProjectDatasetLinkI()
         link.setParent(parent_project._obj)
-        link.setChild(new_dataset._obj)
+        link.setChild(new_dataset)
         conn.getUpdateService().saveObject(link)
 
     return new_dataset
