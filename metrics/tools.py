@@ -10,6 +10,8 @@ from scipy.spatial.distance import cdist
 from scipy import ndimage
 import numpy as np
 from itertools import permutations
+
+from dask import delayed
 import logging
 
 
@@ -54,8 +56,8 @@ def segment_image(image, min_distance=20, sigma=(1, 2, 2), method='local_max', h
     """Segment an image and return a labels object"""
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
-    for c in range(image.shape[2]):  # TODO: Deal with Time here
-        labels_image[..., c, :, :] = _segment_single_channel(image[0, :, c, :, :],
+    for c in range(image.shape[-3]):  # TODO: Deal with Time here
+        labels_image[..., c, :, :] = _segment_single_channel(image[..., c, :, :],
                                                              min_distance=min_distance,
                                                              sigma=sigma,
                                                              method=method,
@@ -101,9 +103,9 @@ def compute_spots_properties(image, labels, remove_center_cross=True):
     properties = list()
     positions = list()
 
-    for c in range(image.shape[2]):  # TODO: Deal with Time here
-        pr, pos = _compute_channel_spots_properties(image[0, :, c, :, :],
-                                                    labels[0, :, c, :, :],
+    for c in range(image.shape[-3]):  # TODO: Deal with Time here
+        pr, pos = _compute_channel_spots_properties(image[..., c, :, :],
+                                                    labels[..., c, :, :],
                                                     remove_center_cross=remove_center_cross)
         properties.append(pr)
         positions.append(pos)

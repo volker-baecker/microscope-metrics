@@ -58,8 +58,8 @@ def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
     resolution_values = list()
     resolution_method = 'Rayleigh'
 
-    for c in range(image.shape[2]):  # TODO: Deal with Time here
-        prof, pk, pr, res = _compute_channel_resolution(channel=image[0, :, c, :, :],
+    for c in range(image.shape[1]):  # TODO: Deal with Time here
+        prof, pk, pr, res = _compute_channel_resolution(channel=image[..., c, :, :],
                                                         axis=axis,
                                                         prominence=prominence,
                                                         do_angle_refinement=do_angle_refinement)

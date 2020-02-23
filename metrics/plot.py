@@ -30,9 +30,9 @@ def plot_distances_maps(distances, x_dim, y_dim):
 
 def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_stack):
 
-    nb_of_channels = raw_stack.shape[2]
-    x_dim = raw_stack.shape[3]
-    y_dim = raw_stack.shape[4]
+    nb_of_channels = raw_stack.shape[1]
+    x_dim = raw_stack.shape[-2]
+    y_dim = raw_stack.shape[-1]
 
     fig, axes = plt.subplots(ncols=nb_of_channels, nrows=3, squeeze=False, figsize=(12, 6))
 
@@ -50,18 +50,18 @@ def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_st
         ax = axes.ravel()
         ax[c] = plt.subplot(3, 4, c + 1)
 
-        ax[c].imshow(raw_stack[0, :, c, :, :].max(0), cmap='gray')
+        ax[c].imshow(raw_stack[..., c, :, :].max(0), cmap='gray')
         ax[c].set_title('raw_channel_' + str(c))
 
-        ax[c + nb_of_channels].imshow(labels_stack[0, :, c, :, :].max(0))
+        ax[c + nb_of_channels].imshow(labels_stack[..., c, :, :].max(0))
         ax[c + nb_of_channels].set_title('segmented_channel_' + str(c))
 
         ax[c + 2 * nb_of_channels].imshow(np.flipud(interpolated),
                                           extent=(0, x_dim, y_dim, 0),
                                           origin='lower',
                                           cmap=cm.hot,
-                                          vmin=np.amin(raw_stack[0, :, c, :, :]),
-                                          vmax=np.amax(raw_stack[0, :, c, :, :]))
+                                          vmin=np.amin(raw_stack[..., c, :, :]),
+                                          vmax=np.amax(raw_stack[..., c, :, :]))
         ax[c + 2 * nb_of_channels].plot(spots_positions[c][:, 2], spots_positions[c][:, 1], 'k.', ms=2)
         # ax[c + 2 * nb_of_channels].clim(np.amin(raw_img[:, c, :, :]), np.amax(raw_img[:, c, :, :]))
         ax[c + 2 * nb_of_channels].set_title('Max_intensity_channel_' + str(c))
