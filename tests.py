@@ -1,21 +1,9 @@
-# import unittest
-#
-#
-# class MyTestCase(unittest.TestCase):
-#     def test_something(self):
-#         self.assertEqual(True, False)
-#
-#
-# if __name__ == '__main__':
-#     unittest.main()
-
 import imageio
 from metrics.interface import omero
-from metrics.tools import segment_image, compute_distances_matrix, compute_spots_properties
+from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from metrics.samples.argolight import compute_resolution
 from metrics import plot
 from credentials import HOST, PORT, USER, PASSWORD, GROUP
-from dask import delayed
 
 RUN_MODE = 'local'
 # RUN_MODE = 'omero'
@@ -53,38 +41,13 @@ def get_omero_data(image_id):
     return {'image_data': raw_img, 'pixel_sizes': pixel_sizes, 'pixel_units': pixel_units}
 
 
-# def main_local():
-#     # raw_img = imageio.volread('/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_WF_ALX.ome.tif')
-#     raw_img = imageio.volread(
-#         '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI508_Argolight-1-1_010_SIR_ALX.ome.tif')
-#     # raw_img = imageio.volread('/home/julio/PycharmProjects/OMERO.metrics/Images/Test_image_SIR_ALX.ome.tif')
-#     # raw_img = imageio.volread('/Users/julio/Desktop/20170215_R506_Argolight_SIM_001_visit_13_WF.ome.tif')
-#     # raw_img = imageio.volread('/Users/julio/Desktop/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.dv/20160215_R506_Argolight_SIM_001_visit_13_SIR_ALX.ome.tif')
-#     n_channels = raw_img.shape[1]
-#     x_size = raw_img.shape[2]
-#     y_size = raw_img.shape[3]
-#
-#     labels_image = metrics.segment_image(image=raw_img)
-#
-#     spots_properties, spots_positions = metrics.compute_spots_properties(raw_img,labels_image)
-#
-#     spots_distances = metrics.compute_distances_matrix(spots_positions)
-#
-#     plot_homogeneity_map(data=BF,
-#                          nb_of_channels=n_channels,
-#                          x_dim=x_size,
-#                          y_dim=y_size)
-#
-#     # out = metrics.analise_distances_matrix(positions)
-
-
 def analyze_spots(image, pixel_sizes):
 
     labels_stack = segment_image(image=image,
                                  min_distance=30,
                                  sigma=(1, 3, 3),
                                  method='local_max',
-                                 hysteresis_levels=(.6, 0.8))
+                                 hysteresis_levels=(.5, 0.6))
 
     spots_properties, spots_positions = compute_spots_properties(image, labels_stack, remove_center_cross=False)
 
@@ -147,6 +110,7 @@ def main(run_mode):
         # # plt.imshow(np.log(fft_3D[2, 23, :, :]))  # , cmap='hot')
         # plt.show()
         #
+
 
 if __name__ == '__main__':
     main(RUN_MODE)
