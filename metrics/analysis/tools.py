@@ -1,6 +1,5 @@
 """These are some possibly useful code snippets"""
 
-# Thresholding and labeling
 from skimage.filters import threshold_otsu, apply_hysteresis_threshold, gaussian
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
@@ -11,38 +10,43 @@ from scipy import ndimage
 import numpy as np
 from itertools import permutations
 
-from dask import delayed
+# from dask import delayed
+
 import logging
 
+# Creating logging services
+module_logger = logging.getLogger('metrics.analysis.tools')
 
-def _segment_single_channel(channel, min_distance, sigma, method, hysteresis_levels):
-    """Segment a channel (3D numpy array)"""
+
+def _segment_single_channel(channel, min_distance, sigma, method, low_corr_factor, high_corr_factor):
+    """Segment a channel (3D numpy array)
+    """
     threshold = threshold_otsu(channel)
 
     # TODO: Threshold be a sigma passed here
-    gauss_filtered = gaussian(image=channel,
-                              multichannel=False,
-                              sigma=sigma,
-                              preserve_range=True)
+    if sigma is not None:
+        channel = gaussian(image=channel,
+                           multichannel=False,
+                           sigma=sigma,
+                           preserve_range=True)
 
     if method == 'hysteresis':  # We may try here hysteresis threshold
-        thresholded = apply_hysteresis_threshold(gauss_filtered,
-                                                 low=threshold * hysteresis_levels[0],
-                                                 high=threshold * hysteresis_levels[1]
+        thresholded = apply_hysteresis_threshold(channel,
+                                                 low=threshold * low_corr_factor,
+                                                 high=threshold * high_corr_factor
                                                  )
 
     elif method == 'local_max':  # We are applying a local maxima algorithm
-        peaks = peak_local_max(gauss_filtered,
+        peaks = peak_local_max(channel,
                                min_distance=min_distance,
                                threshold_abs=(threshold * .5),
                                exclude_border=True,
-                               indices=False
-                               )
-        thresholded = np.copy(gauss_filtered)
+                               indices=False)
+        thresholded = np.copy(channel)
         thresholded[peaks] = thresholded.max()
         thresholded = apply_hysteresis_threshold(thresholded,
-                                                 low=threshold * hysteresis_levels[0],
-                                                 high=threshold * hysteresis_levels[1]
+                                                 low=threshold * low_corr_factor,
+                                                 high=threshold * high_corr_factor
                                                  )
     else:
         raise Exception('A valid segmentation method was not provided')
@@ -52,20 +56,37 @@ def _segment_single_channel(channel, min_distance, sigma, method, hysteresis_lev
     return label(cleared)
 
 
-def segment_image(image, min_distance=20, sigma=(1, 2, 2), method='local_max', hysteresis_levels=(.6, .9)):
-    """Segment an image and return a labels object"""
+def segment_image(image,
+                  min_distance=20,
+                  sigma=None,
+                  method='local_max',
+                  low_corr_factors=None,
+                  high_corr_factors=None):
+    """Segment an image and return a labels object.
+    Image must be provided as
+    """
+    module_logger.info('Image being segmented...')
+
+    if low_corr_factors is None:
+        low_corr_factors = [.95] * image.shape[-3]
+        module_logger.warning('No low correction factor specified. Using defaults')
+    if high_corr_factors is None:
+        high_corr_factors = [1.05] * image.shape[-3]
+        module_logger.warning('No high correction factor specified. Using defaults')
+
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
-    for c in range(image.shape[-3]):  # TODO: Deal with Time here
+    for c in range(image.shape[-3]):
         labels_image[..., c, :, :] = _segment_single_channel(image[..., c, :, :],
                                                              min_distance=min_distance,
                                                              sigma=sigma,
                                                              method=method,
-                                                             hysteresis_levels=hysteresis_levels)
+                                                             low_corr_factor=low_corr_factors[c],
+                                                             high_corr_factor=high_corr_factors[c])
     return labels_image
 
 
-def _compute_channel_spots_properties(channel, label_channel, remove_center_cross, pixel_size=None):
+def _compute_channel_spots_properties(channel, label_channel, remove_center_cross=False, pixel_size=None):
     """Analyzes and extracts the properties of a single channel"""
 
     ch_properties = list()
@@ -123,6 +144,7 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
     Like so:
     [((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]
     """
+    module_logger.info('Computing distances between spots')
     # TODO: Correct documentation
     # Container for results
     distances = list()
@@ -139,7 +161,7 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
 
     if not pixel_size:
         pixel_size = np.array((1, 1, 1))
-        # TODO: log warning
+        module_logger.warning('No pixel size specified. Using the unit')
     else:
         pixel_size = np.array(pixel_size)
 

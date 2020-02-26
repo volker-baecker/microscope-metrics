@@ -1,7 +1,65 @@
+
+from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
+from metrics.plot import plot
+
 import numpy as np
 from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
 from scipy.signal import find_peaks
 from statistics import median
+
+import logging
+
+# Creating logging services
+module_logger = logging.getLogger('metrics.samples.argolight')
+
+
+# ___________________________________________
+#
+# ANALYZING 'SPOTS' MATRIX. PATTERNS XXX
+# Computing chromatic shifts, homogeneity,...
+# ___________________________________________
+
+
+def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
+
+    labels_stack = segment_image(image=image,
+                                 min_distance=30,
+                                 sigma=(1, 3, 3),
+                                 method='local_max',
+                                 low_corr_factors=low_corr_factors,
+                                 high_corr_factors=high_corr_factors)
+
+    spots_properties, spots_positions = compute_spots_properties(image, labels_stack, remove_center_cross=False)
+
+    spots_distances = compute_distances_matrix(positions=spots_positions,
+                                               sigma=2.0,
+                                               pixel_size=pixel_sizes)
+
+    plot.plot_homogeneity_map(raw_stack=image,
+                              spots_properties=spots_properties,
+                              spots_positions=spots_positions,
+                              labels_stack=labels_stack)
+
+    plot.plot_distances_maps(distances=spots_distances,
+                             x_dim=image.shape[-2],
+                             y_dim=image.shape[-1])
+
+
+
+# _____________________________________
+#
+# ANALYSING LINES PATTERN. PATTERNS XXX
+# Computing resolution
+# _____________________________________
+
+
+def analyze_resolution(image, pixel_sizes, pixel_units, axis):
+    profiles, peaks, peak_properties, resolution_values = compute_resolution(image=image,
+                                                                             axis=axis,
+                                                                             prominence=.2,
+                                                                             do_angle_refinement=False)
+
+    plot.plot_peaks(profiles, peaks, peak_properties)
 
 
 def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=False):
@@ -69,3 +127,16 @@ def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
         resolution_values.append(res)
 
     return profiles, peaks, peaks_properties, resolution_values
+
+# Calculate 2D FFT
+# slice_2d = raw_img[17, ...].reshape([1, n_channels, x_size, y_size])
+# fft_2D = fft_2d(slice_2d)
+
+# Calculate 3D FFT
+# fft_3D = fft_3d(spots_image)
+#
+# plt.imshow(np.log(fft_3D[2, :, :, 1]))  # , cmap='hot')
+# # plt.imshow(np.log(fft_3D[2, 23, :, :]))  # , cmap='hot')
+# plt.show()
+#
+
