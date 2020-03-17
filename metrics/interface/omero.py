@@ -31,12 +31,13 @@ COLUMN_TYPES = {'string': grid.StringColumn,
                 }
 
 
-def open_connection(username, password, group, port, host):
+def open_connection(username, password, group, port, host, secure=False):
     conn = gw.BlitzGateway(username=username,
-                        passwd=password,
-                        group=group,
-                        port=port,
-                        host=host)
+                           passwd=password,
+                           group=group,
+                           port=port,
+                           host=host,
+                           secure=secure)
     try:
         conn.connect()
     except Exception as e:
@@ -44,8 +45,8 @@ def open_connection(username, password, group, port, host):
     return conn
 
 
-def close_connection(conn):
-    conn.close()
+def close_connection(connection):
+    connection.close()
 
 
 def get_image(connection, image_id):
@@ -74,9 +75,9 @@ def get_project(connection, project_id):
 
 def get_image_shape(image):
     try:
-        image_shape = (image.getSizeT(),
-                       image.getSizeZ(),
+        image_shape = (image.getSizeZ(),
                        image.getSizeC(),
+                       image.getSizeT(),
                        image.getSizeX(),
                        image.getSizeY())
     except Exception as e:
@@ -103,51 +104,88 @@ def get_pixel_units(image):
     return pixel_size_units
 
 
-def get_5d_stack(image):
-    # We will further work with stacks of the shape TZCXY
+def get_intensities(image, z_range=None, c_range=None, t_range=None, x_range=None, y_range=None):
+    """Returns a numpy array containing the intensity values of the image
+    Returns an array with dimensions arranged as zctxy
+    """
     image_shape = get_image_shape(image)
 
-    nr_planes = reduce(mul, image_shape[:-2])
+    # Decide if we are going to call getPlanes or getTiles
+    if not x_range and not y_range:
+        whole_planes = True
+    else:
+        whole_planes = False
 
-    zct_list = list(product(range(image_shape[1]),
-                            range(image_shape[2]),
-                            range(image_shape[0])))
+    ranges = list(range(5))
+    for dim, r in enumerate([z_range, c_range, t_range, x_range, y_range]):
+        # Verify that requested ranges are within the available data
+        if r is None:  # Range is not specified
+            ranges[dim] = range(image_shape[dim])
+        else:  # Range is specified
+            if type(r) is int:
+                ranges[dim] = range(r, r + 1)
+            elif type(r) is not tuple:
+                raise TypeError('Range is not provided as a tuple.')
+            else:  # range is a tuple
+                if len(r) == 1:
+                    ranges[dim] = range(r[0])
+                elif len(r) == 2:
+                    ranges[dim] = range(r[0], r[1])
+                elif len(r) == 3:
+                    ranges[dim] = range(r[0], r[1], r[2])
+                else:
+                    raise IndexError('Range values must contain 1 to three values')
+            if not 1 <= ranges[dim].stop <= image_shape[dim]:
+                raise IndexError('Specified range is outside of the image dimensions')
+
+    output_shape = (len(ranges[0]), len(ranges[1]), len(ranges[2]), len(ranges[3]), len(ranges[4]))
+    nr_planes = output_shape[0] * output_shape[1] * output_shape[2]
+    zct_list = list(product(ranges[0], ranges[1], ranges[2]))
+
     pixels = image.getPrimaryPixels()
     pixels_type = pixels.getPixelsType()
     if pixels_type.value == 'float':
         data_type = pixels_type.value + str(pixels_type.bitSize)  # TODO: Verify this is working for all data types
     else:
         data_type = pixels_type.value
-    stack = np.zeros((nr_planes,
-                      image.getSizeX(),
-                      image.getSizeY()), dtype=data_type)
-    np.stack(list(pixels.getPlanes(zct_list)), out=stack)
-    stack = np.reshape(stack, image_shape)
 
-    return stack
+    intensities = np.zeros((nr_planes,
+                            output_shape[3],
+                            output_shape[4]),
+                           dtype=data_type)
+    if whole_planes:
+        np.stack(list(pixels.getPlanes(zctList=zct_list)), out=intensities)
+    else:
+        tile_region = (ranges[3].start, ranges[4].start, len(ranges[3]), len(ranges[4]))
+        zct_tile_list = [(z, c, t, tile_region) for z, c, t in zct_list]
+        np.stack(list(pixels.getTiles(zctTileList=zct_tile_list)), out=intensities)
+
+    intensities = np.reshape(intensities, newshape=output_shape)
+
+    return intensities
 
 
-# Creating projects and datasets
+############### Creating projects and datasets #####################
 
-def create_project(conn, project_name):
-    new_project = gw.ProjectWrapper(conn)
+def create_project(connection, project_name):
+    new_project = gw.ProjectWrapper(connection)
     new_project.setName(rtypes.rstring(project_name))
     new_project.save()
 
     return new_project
 
 
-def create_dataset(conn, dataset_name, dataset_description=None, parent_project=None):
+def create_dataset(connection, dataset_name, dataset_description=None, parent_project=None):
     new_dataset = model.DatasetI()
     new_dataset.setName(rtypes.rstring(dataset_name))
     if dataset_description:
         new_dataset.setDescription(rtypes.rstring(dataset_description))
-    new_dataset = conn.getUpdateService().saveAndReturnObject(new_dataset)
+    new_dataset = connection.getUpdateService().saveAndReturnObject(new_dataset)
     if parent_project:
         link = model.ProjectDatasetLinkI()
         link.setParent(parent_project._obj)
         link.setChild(new_dataset)
-        conn.getUpdateService().saveObject(link)
+        connection.getUpdateService().saveObject(link)
 
     return new_dataset
 
@@ -200,7 +238,7 @@ def delete_project(conn, projects, delete_annotations=False, delete_children=Fal
 # cb.close(True)      # close handle too
 
 
-# Getting information on projects and datasets
+############### Getting information on projects and datasets ###############
 
 def get_all_projects(conn, opts={'order_by':'loser(obj.name)'}):
     projects = conn.getObjects("Project", opts=opts)
@@ -208,13 +246,13 @@ def get_all_projects(conn, opts={'order_by':'loser(obj.name)'}):
     return projects
 
 
-def get_project_datasets(conn, project):
+def get_project_datasets(project):
     datasets = project.listChildren()
 
     return datasets
 
 
-def get_dataset_images(conn, dataset):
+def get_dataset_images(dataset):
     images = dataset.listChildren()
 
     return images
@@ -234,8 +272,8 @@ def get_orphan_images(conn):
 
 # In this section we give some convenience functions to send data back to OMERO #
 
-def create_annotation_tag(conn, tag_string):
-    tag_ann = gw.TagAnnotationWrapper(conn)
+def create_annotation_tag(connection, tag_string):
+    tag_ann = gw.TagAnnotationWrapper(connection)
     tag_ann.setValue(tag_string)
     tag_ann.save()
 
@@ -260,7 +298,7 @@ def _dict_to_map(dictionary):
     return map_annotation
 
 
-def create_annotation_map(conn, annotation, client_editable=True):
+def create_annotation_map(connection, annotation, client_editable=True):
     """Creates a map_annotation for OMERO. It can create a map annotation from a
     dictionary or from a list of 2 elements list.
     """
@@ -272,7 +310,7 @@ def create_annotation_map(conn, annotation, client_editable=True):
     else:
         raise Exception(f'Could not convert {annotation} to a map_annotation')
 
-    map_ann = gw.MapAnnotationWrapper(conn)
+    map_ann = gw.MapAnnotationWrapper(connection)
 
     if client_editable:
         namespace = metadata.NSCLIENTMAPANNOTATION  # This makes the annotation editable in the client
@@ -284,13 +322,13 @@ def create_annotation_map(conn, annotation, client_editable=True):
     return map_ann
 
 
-def create_annotation_file_local(conn, file_path, namespace=None, description=None):
+def create_annotation_file_local(connection, file_path, namespace=None, description=None):
     """Creates a file annotation and uploads it to OMERO"""
 
-    file_ann = conn.createFileAnnfromLocalFile(localPath=file_path,
-                                               mimetype=None,
-                                               namespace=namespace,
-                                               desc=description)
+    file_ann = connection.createFileAnnfromLocalFile(localPath=file_path,
+                                                     mimetype=None,
+                                                     namespace=namespace,
+                                                     desc=description)
     return file_ann
 
 
@@ -322,7 +360,7 @@ def _create_table(column_names, columns_descriptions, values):
     return columns
 
 
-def create_annotation_table(conn, table_name, column_names, column_descriptions, values, namespace=None, description=None):
+def create_annotation_table(connection, table_name, column_names, column_descriptions, values, namespace=None, description=None):
     """Creates a table annotation from a list of lists"""
 
     table_name = f'{table_name}_{"".join([choice(ascii_letters) for n in range(32)])}.h5'
@@ -330,7 +368,7 @@ def create_annotation_table(conn, table_name, column_names, column_descriptions,
     columns = _create_table(column_names=column_names,
                             columns_descriptions=column_descriptions,
                             values=values)
-    resources = conn.c.sf.sharedResources()
+    resources = connection.c.sf.sharedResources()
     repository_id = resources.repositories().descriptions[0].getId().getValue()
     table = resources.newTable(repository_id, table_name)
     table.initialize(columns)
@@ -338,14 +376,19 @@ def create_annotation_table(conn, table_name, column_names, column_descriptions,
 
     original_file = table.getOriginalFile()
     table.close()  # when we are done, close.
-    file_ann = gw.FileAnnotationWrapper(conn)
+    file_ann = gw.FileAnnotationWrapper(connection)
     file_ann.setNs(namespaces.NSBULKANNOTATIONS)
     file_ann.setFile(model.OriginalFileI(original_file.id.val, False))  # TODO: try to get this with a wrapper
     file_ann.save()
     return file_ann
 
 
-def _create_roi(conn, image, shapes):
+def create_roi(connection, image, shapes):
+    """A pass through to create a roi into an image"""
+    return _create_roi(connection, image, shapes)
+
+
+def _create_roi(connection, image, shapes):
     # create an ROI, link it to Image
     roi = model.RoiI()
     # use the omero.model.ImageI that underlies the 'image' wrapper
@@ -353,7 +396,7 @@ def _create_roi(conn, image, shapes):
     for shape in shapes:
         roi.addShape(shape)
     # Save the ROI (saves any linked shapes too)
-    return conn.updateService.saveAndReturnObject(roi)
+    return connection.getUpdateService().saveAndReturnObject(roi)
 
 
 def _rgba_to_int(red, green, blue, alpha=255):
@@ -378,7 +421,6 @@ def _set_shape_properties(shape, name=None,
     shape.setFillColor(rtypes.rint(_rgba_to_int(*fill_color)))
     shape.setStrokeColor(rtypes.rint(_rgba_to_int(*stroke_color)))
     shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
-    # shape.setStrokeWidth(model.LengthI(stroke_width, model.enums.UnitsLength.PIXEL))
 
 
 def create_shape_point(x_pos, y_pos, z_pos, t_pos, point_name=None):
