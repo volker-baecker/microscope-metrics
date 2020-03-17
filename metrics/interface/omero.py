@@ -1,9 +1,13 @@
+# OMERO imports
 import omero.gateway as gw
 from omero.constants import metadata, namespaces
 from omero import model
 from omero.model import enums, LengthI
 from omero import grid
 from omero import rtypes
+import omero_rois
+
+# Generic imports
 import numpy as np
 from operator import mul
 from itertools import product

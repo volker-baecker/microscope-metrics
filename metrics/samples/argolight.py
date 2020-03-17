@@ -19,7 +19,6 @@ module_logger = logging.getLogger('metrics.samples.argolight')
 # Computing chromatic shifts, homogeneity,...
 # ___________________________________________
 
-
 def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
 
     labels_stack = segment_image(image=image,
@@ -45,13 +44,11 @@ def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
                              y_dim=image.shape[-1])
 
 
-
 # _____________________________________
 #
 # ANALYSING LINES PATTERN. PATTERNS XXX
 # Computing resolution
 # _____________________________________
-
 
 def analyze_resolution(image, pixel_sizes, pixel_units, axis):
     profiles, peaks, peak_properties, resolution_values = compute_resolution(image=image,
