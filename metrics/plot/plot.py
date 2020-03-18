@@ -69,16 +69,40 @@ def plot_homogeneity_map(raw_stack, spots_properties, spots_positions, labels_st
     plt.show()
 
 
-def plot_peaks(profiles, peaks, properties):
+def plot_peaks(profiles, peaks, properties, resolutions, res_indexes):
     fig, axes = plt.subplots(ncols=1, nrows=len(profiles), squeeze=False, figsize=(48, 24))
 
-    for i, profile in enumerate(profiles):
+    for c, profile in enumerate(profiles):
 
         ax = axes.ravel()
 
-        ax[i].plot(profile)
-        ax[i].plot(peaks[i], profile[peaks[i]], "x")
-        ax[i].vlines(x=peaks[i], ymin=profile[peaks[i]] - properties[i]["prominences"],
-                   ymax=profile[peaks[i]], color="C1")
+        ax[c].plot(profile)
+        ax[c].plot(peaks[c], profile[peaks[c]], "x")
+        ax[c].vlines(x=peaks[c],
+                     ymin=profile[peaks[c]] - properties[c]['prominences'],
+                     ymax=profile[peaks[c]],
+                     color='green')
+        for i in res_indexes[c]:
+            ax[c].vlines(x=peaks[c][i],
+                         ymin=profile[peaks[c][i]] + .02,
+                         ymax=1,
+                         color='red',
+                         linestyles='dashed')
+            ax[c].vlines(x=peaks[c][i+1],
+                         ymin=profile[peaks[c][i+1]] + .02,
+                         ymax=1,
+                         color='red',
+                         linestyles='dashed')
+            ax[c].annotate(s=resolutions[c],
+                           xy=(((peaks[c][i] + peaks[c][i+1]) / 2), profile[peaks[c][i+1]] + .1),
+                           # ((vline_value - x_bounds[0]) / (x_bounds[1] - x_bounds[0])), 1.01),
+                           # xycoords='axes fraction', verticalalignment='right',
+                           horizontalalignment='center',
+                           fontsize='xx-large',
+                           fontweight='bold',
+                           # rotation=270
+                           )
+
+    # plt.legend()
     plt.show()
 

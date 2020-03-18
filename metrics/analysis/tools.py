@@ -18,7 +18,7 @@ import logging
 module_logger = logging.getLogger('metrics.analysis.tools')
 
 
-def _segment_single_channel(channel, min_distance, sigma, method, low_corr_factor, high_corr_factor):
+def _segment_channel(channel, min_distance, sigma, method, low_corr_factor, high_corr_factor):
     """Segment a channel (3D numpy array)
     """
     threshold = threshold_otsu(channel)
@@ -77,12 +77,12 @@ def segment_image(image,
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
     for c in range(image.shape[-3]):
-        labels_image[..., c, :, :] = _segment_single_channel(image[..., c, :, :],
-                                                             min_distance=min_distance,
-                                                             sigma=sigma,
-                                                             method=method,
-                                                             low_corr_factor=low_corr_factors[c],
-                                                             high_corr_factor=high_corr_factors[c])
+        labels_image[..., c, :, :] = _segment_channel(image[..., c, :, :],
+                                                      min_distance=min_distance,
+                                                      sigma=sigma,
+                                                      method=method,
+                                                      low_corr_factor=low_corr_factors[c],
+                                                      high_corr_factor=high_corr_factors[c])
     return labels_image
 
 

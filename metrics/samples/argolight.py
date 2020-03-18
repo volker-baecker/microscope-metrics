@@ -51,12 +51,14 @@ def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
 # _____________________________________
 
 def analyze_resolution(image, pixel_sizes, pixel_units, axis):
-    profiles, peaks, peak_properties, resolution_values = compute_resolution(image=image,
-                                                                             axis=axis,
-                                                                             prominence=.2,
-                                                                             do_angle_refinement=False)
+    profiles, peaks, peak_properties, resolution_values, resolution_indexes = compute_resolution(image=image,
+                                                                                                 axis=axis,
+                                                                                                 prominence=.2,
+                                                                                                 do_angle_refinement=False)
+    # resolution in native units
+    resolution_values = [x * pixel_sizes[axis-1] for x in resolution_values]
 
-    plot.plot_peaks(profiles, peaks, peak_properties)
+    plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
 
 
 def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=False):
@@ -78,6 +80,8 @@ def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=F
     # get the center and width of the lines pattern
     # TODO: properly get the best of the lines
 
+    # TODO: we have to do some fitting or interpolation to get more precision then the single pixel
+
     # Cut a band of that found peak
     # Best we can do now is just to cut a band in the center
     # We create a profiles along which we average signal
@@ -98,12 +102,11 @@ def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=F
                                    )
 
     # Find the closest peaks to return it as a measure of resolution
-    peaks_distances = list()
-    for a, b in zip(peaks[0:-2], peaks[1:-1]):
-        peaks_distances.append(abs(a - b))
+    peaks_distances = [abs(a - b) for a, b in zip(peaks[0:-2], peaks[1:-1])]
     res = min(peaks_distances)
+    res_indices = [i for i, x in enumerate(peaks_distances) if x == res]
 
-    return normalized_profile, peaks, properties, res
+    return normalized_profile, peaks, properties, res, res_indices
 
 
 def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
@@ -111,19 +114,21 @@ def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
     peaks = list()
     peaks_properties = list()
     resolution_values = list()
+    resolution_indexes = list()
     resolution_method = 'Rayleigh'
 
     for c in range(image.shape[1]):  # TODO: Deal with Time here
-        prof, pk, pr, res = _compute_channel_resolution(channel=image[..., c, :, :],
-                                                        axis=axis,
-                                                        prominence=prominence,
-                                                        do_angle_refinement=do_angle_refinement)
+        prof, pk, pr, res, res_ind = _compute_channel_resolution(channel=image[..., c, :, :],
+                                                                 axis=axis,
+                                                                 prominence=prominence,
+                                                                 do_angle_refinement=do_angle_refinement)
         profiles.append(prof)
         peaks.append(pk)
         peaks_properties.append(pr)
         resolution_values.append(res)
+        resolution_indexes.append(res_ind)
 
-    return profiles, peaks, peaks_properties, resolution_values
+    return profiles, peaks, peaks_properties, resolution_values, resolution_indexes
 
 # Calculate 2D FFT
 # slice_2d = raw_img[17, ...].reshape([1, n_channels, x_size, y_size])
