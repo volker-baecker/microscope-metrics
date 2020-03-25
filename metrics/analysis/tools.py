@@ -63,7 +63,7 @@ def segment_image(image,
                   low_corr_factors=None,
                   high_corr_factors=None):
     """Segment an image and return a labels object.
-    Image must be provided as
+    Image must be provided as zctxy numpu array
     """
     module_logger.info('Image being segmented...')
 
@@ -76,13 +76,13 @@ def segment_image(image,
 
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
-    for c in range(image.shape[-3]):
-        labels_image[..., c, :, :] = _segment_channel(image[..., c, :, :],
-                                                      min_distance=min_distance,
-                                                      sigma=sigma,
-                                                      method=method,
-                                                      low_corr_factor=low_corr_factors[c],
-                                                      high_corr_factor=high_corr_factors[c])
+    for c in range(image.shape[1]):
+        labels_image[:, c, ...] = _segment_channel(image[:, c, ...],
+                                                   min_distance=min_distance,
+                                                   sigma=sigma,
+                                                   method=method,
+                                                   low_corr_factor=low_corr_factors[c],
+                                                   high_corr_factor=high_corr_factors[c])
     return labels_image
 
 

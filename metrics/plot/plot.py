@@ -93,7 +93,7 @@ def plot_peaks(profiles, peaks, properties, resolutions, res_indexes):
                          ymax=1,
                          color='red',
                          linestyles='dashed')
-            ax[c].annotate(s=resolutions[c],
+            ax[c].annotate(s=f'{resolutions[c]:.3f}',
                            xy=(((peaks[c][i] + peaks[c][i+1]) / 2), profile[peaks[c][i+1]] + .1),
                            # ((vline_value - x_bounds[0]) / (x_bounds[1] - x_bounds[0])), 1.01),
                            # xycoords='axes fraction', verticalalignment='right',
