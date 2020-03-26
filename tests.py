@@ -6,22 +6,23 @@ from metrics.utils.utils import MetricsConfig
 import logging
 
 # import Argolight analysis tools
-from metrics.samples.argolight import analyze_spots, analyze_resolution
+from metrics.samples import argolight
 
 # import other sample types analysis tools
 
 # TODO: these imports should go somewhere else in the future
 import imageio
+import numpy as np
 from metrics.interface import omero
-from credentials import HOST, PORT, USER, PASSWORD, GROUP
+from credentials import *
 
 # TODO: these constants should go somewhere else in the future. Basically are recovered by OMERO scripting interface
-RUN_MODE = 'local'
-# RUN_MODE = 'omero'
+# RUN_MODE = 'local'
+RUN_MODE = 'omero'
 
-spots_image_id = 7
-vertical_stripes_image_id = 3
-horizontal_stripes_image_id = 5
+# spots_image_id = 7
+# vertical_stripes_image_id = 3
+# horizontal_stripes_image_id = 5
 spots_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_010_SIR_ALX.dv/201702_RI510_Argolight-1-1_010_SIR_ALX_THR.ome.tif'
 vertical_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_004_SIR_ALX.dv/201702_RI510_Argolight-1-1_004_SIR_ALX_THR.ome.tif'
 horizontal_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_005_SIR_ALX.dv/201702_RI510_Argolight-1-1_005_SIR_ALX_THR.ome.tif'
@@ -67,7 +68,13 @@ def get_omero_data(image_id):
                                  host=HOST)
 
     image = omero.get_image(conn, image_id)
-    raw_img = omero.get_5d_stack(image)
+    raw_img = omero.get_intensities(image)
+    # Images from OMERO come in zctxy dimensions and locally as zcxy.
+    # The easyest for the moment is to remove t from the omero image
+    if raw_img.shape[2] == 1:
+        raw_img = np.squeeze(raw_img, 2)
+    else:
+        raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
     pixel_sizes = omero.get_pixel_sizes(image)
     pixel_units = omero.get_pixel_units(image)
 
@@ -84,13 +91,13 @@ def main(run_mode):
 
     if run_mode == 'local':
         spots_image = get_local_data(spots_image_path)
-        vertical_res_image = get_local_data(vertical_stripes_image_path)
-        horizontal_res_image = get_local_data(horizontal_stripes_image_path)
+        vertical_res_image = get_local_data(horizontal_stripes_image_path)
+        horizontal_res_image = get_local_data(vertical_stripes_image_path)
 
     elif run_mode == 'omero':
         spots_image = get_omero_data(spots_image_id)
-        vertical_res_image = get_omero_data(vertical_stripes_image_id)
-        horizontal_res_image = get_omero_data(horizontal_stripes_image_id)
+        vertical_res_image = get_omero_data(horizontal_stripes_image_id)
+        horizontal_res_image = get_omero_data(vertical_stripes_image_id)
 
     else:
         raise Exception('run mode not defined')
@@ -100,24 +107,24 @@ def main(run_mode):
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
             logger.info(f'Analyzing spots image...')
-            analyze_spots(spots_image['image_data'],
-                          spots_image['pixel_sizes'],
-                          low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                          high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            argolight.analyze_spots(spots_image['image_data'],
+                                    spots_image['pixel_sizes'],
+                                    low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                    high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')
-            analyze_resolution(vertical_res_image['image_data'],
-                               vertical_res_image['pixel_sizes'],
-                               vertical_res_image['pixel_units'],
-                               2)
+            argolight.analyze_resolution(vertical_res_image['image_data'],
+                                         vertical_res_image['pixel_sizes'],
+                                         vertical_res_image['pixel_units'],
+                                         1)
 
         if al_conf.getboolean('do_horizontal_res'):
             logger.info(f'Analyzing horizontal resolution...')
-            analyze_resolution(horizontal_res_image['image_data'],
-                               horizontal_res_image['pixel_sizes'],
-                               horizontal_res_image['pixel_units'],
-                               1)
+            argolight.analyze_resolution(horizontal_res_image['image_data'],
+                                         horizontal_res_image['pixel_sizes'],
+                                         horizontal_res_image['pixel_units'],
+                                         0)
 
         logger.info('Metrics finished')
 
