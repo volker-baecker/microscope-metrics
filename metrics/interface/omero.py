@@ -90,13 +90,13 @@ def get_image_shape(image):
     return image_shape
 
 
-def get_pixel_sizes(image):
+def get_pixel_size(image):
     pixels = image.getPrimaryPixels()
 
-    pixel_sizes = (pixels.getPhysicalSizeX().getValue(),
+    pixel_size = (pixels.getPhysicalSizeX().getValue(),
                    pixels.getPhysicalSizeY().getValue(),
                    pixels.getPhysicalSizeZ().getValue())
-    return pixel_sizes
+    return pixel_size
 
 
 def get_pixel_units(image):
@@ -342,29 +342,67 @@ def _create_column(data_type, kwargs):
     return column_class(**kwargs)
 
 
-def _create_table(column_names, columns_descriptions, values):
+def _create_table(column_names, columns_descriptions, values, types=None):
+    # validate lengths
+    if not len(column_names) == len(columns_descriptions) == len(values):
+        raise IndexError('Error creating table. Names, description and values not matching or empty.')
+    if types is not None and len(types) != len(values):
+        raise IndexError('Error creating table. Types and values lengths are not matching.')
+    # TODO: Verify implementation of empty table creation
+
     columns = list()
-    for cn, cd, v in zip(column_names, columns_descriptions, values):
-        if isinstance(v[0], str):
-            size = len(max(v, key=len))
+    for i, (cn, cd, v) in enumerate(zip(column_names, columns_descriptions, values)):
+        # Verify column names and descriptions are strings
+        if not type(cn) == type(cd) == str:
+            raise TypeError(f'Types of column name ({type(cn)}) or description ({type(cd)}) is not string')
+
+        if types is not None:
+            v_type = types[i]
+        else:
+            if isinstance(v[0], (list, tuple)):
+                v_type = list(type(v[0][0]))
+            else:
+                v_type = type(v[0])
+
+        # Verify that all elements in values are the same type
+        if not all(isinstance(x, v_type) for x in v):
+            raise TypeError(f'Not all elements in column {cn} are of the same type')
+
+        if v_type == str:
+            size = len(max(v, key=len)) * 2  # We assume here that the max size is double of what we really have...
             args = {'name': cn, 'description': cd, 'size': size, 'values': v}
             columns.append(_create_column(data_type='string', kwargs=args))
-        elif isinstance(v[0], int):
+        elif v_type == int:
             args = {'name': cn, 'description': cd, 'values': v}
             columns.append(_create_column(data_type='long', kwargs=args))
-        elif isinstance(v[0], float):
+        elif v_type == float:
             args = {'name': cn, 'description': cd, 'values': v}
             columns.append(_create_column(data_type='double', kwargs=args))
-        elif isinstance(v[0], bool):
+        elif v_type == bool:
             args = {'name': cn, 'description': cd, 'values': v}
             columns.append(_create_column(data_type='string', kwargs=args))
+        elif isinstance(v_type, (list, tuple)):  # We are creating array columns
+
+            # Verify that every element in the 'array' is the same length and type
+            if not all(len(x) == len(v[0]) for x in v):
+                raise IndexError(f'Not all elements in column {cn} have the same length')
+            if not all(all(isinstance(x, type(v[0][0])) for x in a) for a in v):
+                raise TypeError(f'Not all the elements in the array column {cn} are of the same type')
+
+            args = {'name': cn, 'description': cd, 'size': len(v[0]), 'values': v}
+            if v_type[0] == int:
+                columns.append(_create_column(data_type='long_array', kwargs=args))
+            elif v_type[0] == float:  # We are casting all floats to doubles
+                columns.append(_create_column(data_type='double_array', kwargs=args))
+            else:
+                raise TypeError(f'Error on column {cn}. Datatype not implemented for array columns')
         else:
-            raise Exception(f'Could not detect column datatype for {v[0]}')
+            raise TypeError(f'Could not detect column datatype for column {cn}')
 
     return columns
 
 
-def create_annotation_table(connection, table_name, column_names, column_descriptions, values, namespace=None, description=None):
+def create_annotation_table(connection, table_name, column_names, column_descriptions, values, namespace=None, table_description=None):
     """Creates a table annotation from a list of lists"""
 
     table_name = f'{table_name}_{"".join([choice(ascii_letters) for n in range(32)])}.h5'

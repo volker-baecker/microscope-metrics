@@ -19,57 +19,98 @@ module_logger = logging.getLogger('metrics.samples.argolight')
 # Computing chromatic shifts, homogeneity,...
 # ___________________________________________
 
-def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
+def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_corr_factors):
 
-    labels_stack = segment_image(image=image,
-                                 min_distance=30,
-                                 sigma=(1, 3, 3),
-                                 method='local_max',
-                                 low_corr_factors=low_corr_factors,
-                                 high_corr_factors=high_corr_factors)
+    labels = segment_image(image=image,
+                           min_distance=30,
+                           sigma=(1, 3, 3),
+                           method='local_max',
+                           low_corr_factors=low_corr_factors,
+                           high_corr_factors=high_corr_factors)
 
-    spots_properties, spots_positions = compute_spots_properties(image, labels_stack, remove_center_cross=False)
+    spots_properties, spots_positions = compute_spots_properties(image=image,
+                                                                 labels=labels,
+                                                                 remove_center_cross=False)
 
     spots_distances = compute_distances_matrix(positions=spots_positions,
                                                sigma=2.0,
-                                               pixel_size=pixel_sizes)
+                                               pixel_size=pixel_size)
+
+    output = dict()
+    # Labels
+    output['labels'] = labels
+    output['roiVolumeUnit'] = 'VOXEL'
+    output['roiWeightedCentroidUnits'] = 'PIXEL'
+    output['DistanceUnits'] = pixel_size_units
+    for i, ch_spot_prop in enumerate(spots_properties):
+        output[f'ch{i:02d}_MaxIntegratedIntensityRoi'] = \
+            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']
+        output[f'ch{i:02d}_MinIntegratedIntensityRoi'] = \
+            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']
+        output[f'ch{i:02d}_roiMaskLabels'] = \
+            [x['label'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiVolume'] = \
+            [x['area'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiMaxIntensity'] = \
+            [x['max_intensity'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiMinIntensity'] = \
+            [x['min_intensity'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiMeanIntensity'] = \
+            [x['mean_intensity'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiIntegratedIntensity'] = \
+            [x['integrated_intensity'] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiXWeightedCentroid'] = \
+            [x['weighted_centroid'][1] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiYWeightedCentroid'] = \
+            [x['weighted_centroid'][2] for x in ch_spot_prop]
+        output[f'ch{i:02d}_roiZWeightedCentroid'] = \
+            [x['weighted_centroid'][0] for x in ch_spot_prop]
+    for i, chs_dist in enumerate(spots_distances):
+        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels'] = \
+            chs_dist['labels_of_A']
+        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels'] = \
+            chs_dist['labels_of_B']
+        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance'] = \
+            chs_dist['dist_3d']
+
+    return output
 
     # We want to save:
     # A table per image containing the following columns:
     # - source Image
     # - Per channel
-    #   - RoiColumn(name='chXX_MaxIntegratedIntensityRoi', description='ROI with the highest integrated intensity.', values)
-    #   - RoiColumn(name='chXX_MinIntegratedIntensityRoi', description='ROI with the lowest integrated intensity.', values)
-    #   - LongArrayColumn(name='chXX_roiMaskLabels', description='Labels of the mask ROIs.', size=(verify size), values)
+    #   + RoiColumn(name='chXX_MaxIntegratedIntensityRoi', description='ROI with the highest integrated intensity.', values)
+    #   + RoiColumn(name='chXX_MinIntegratedIntensityRoi', description='ROI with the lowest integrated intensity.', values)
     #   - LongArrayColumn(name='chXX_roiCentroidLabels', description='Labels of the centroids ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiVolume', description='Volume of the ROIs.', size=(verify size), values)
-    # - StringColumn(name='roiVolumeUnit', description='Volume units for the ROIs.', size=(max size), values)
-    #   - FloatArrayColumn(name='chXX_roiMinIntensity', description='Minimum intensity of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiMaxIntensity', description='Maximum intensity of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiMeanIntensity', description='Mean intensity of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiIntegratedIntensity', description='Integrated intensity of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiXWeightedCentroid', description='Wighted Centroid X coordinates of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiYWeightedCentroid', description='Wighted Centroid Y coordinates of the ROIs.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_roiZWeightedCentroid', description='Wighted Centroid Z coordinates of the ROIs.', size=(verify size), values)
-    # - StringColumn(name='roiWeightedCentroidUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
+    #   + LongArrayColumn(name='chXX_roiMaskLabels', description='Labels of the mask ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiVolume', description='Volume of the ROIs.', size=(verify size), values)
+    # + StringColumn(name='roiVolumeUnit', description='Volume units for the ROIs.', size=(max size), values)
+    #   + FloatArrayColumn(name='chXX_roiMinIntensity', description='Minimum intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiMaxIntensity', description='Maximum intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiMeanIntensity', description='Mean intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiIntegratedIntensity', description='Integrated intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiXWeightedCentroid', description='Wighted Centroid X coordinates of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiYWeightedCentroid', description='Wighted Centroid Y coordinates of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiZWeightedCentroid', description='Wighted Centroid Z coordinates of the ROIs.', size=(verify size), values)
+    # + StringColumn(name='roiWeightedCentroidUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
     # - Per channel permutation
-    #   - FloatArrayColumn(name='chXX_chYY_chARoiLabels', description='Labels of the ROIs in channel A.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_chBRoiLabels', description='Labels of the ROIs in channel B.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_chYY_chARoiLabels', description='Labels of the ROIs in channel A.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_chYY_chBRoiLabels', description='Labels of the ROIs in channel B.', size=(verify size), values)
     #   - FloatArrayColumn(name='chXX_chYY_XDistance', description='Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
     #   - FloatArrayColumn(name='chXX_chYY_YDistance', description='Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
     #   - FloatArrayColumn(name='chXX_chYY_ZDistance', description='Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_3DDistance', description='Distance in 3D between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    # - StringColumn(name='DistanceUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
+    #   + FloatArrayColumn(name='chXX_chYY_3dDistance', description='Distance in 3D between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
+    # + StringColumn(name='DistanceUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
 
-    plot.plot_homogeneity_map(raw_stack=image,
-                              spots_properties=spots_properties,
-                              spots_positions=spots_positions,
-                              labels_stack=labels_stack)
-
-    plot.plot_distances_maps(distances=spots_distances,
-                             x_dim=image.shape[-2],
-                             y_dim=image.shape[-1])
-
+    # plot.plot_homogeneity_map(raw_stack=image,
+    #                           spots_properties=spots_properties,
+    #                           spots_positions=spots_positions,
+    #                           labels_stack=labels_stack)
+    #
+    # plot.plot_distances_maps(distances=spots_distances,
+    #                          x_dim=image.shape[-2],
+    #                          y_dim=image.shape[-1])
+    #
 
 # _____________________________________
 #
@@ -77,7 +118,8 @@ def analyze_spots(image, pixel_sizes, low_corr_factors, high_corr_factors):
 # Computing resolution
 # _____________________________________
 
-def analyze_resolution(image, pixel_sizes, pixel_units, axis):
+
+def analyze_resolution(image, pixel_size, pixel_units, axis):
     profiles, \
     peaks, \
     peak_properties, \
@@ -88,7 +130,7 @@ def analyze_resolution(image, pixel_sizes, pixel_units, axis):
                                            prominence=.2,
                                            do_angle_refinement=False)
     # resolution in native units
-    resolution_values = [x * pixel_sizes[axis] for x in resolution_values]
+    resolution_values = [x * pixel_size[axis] for x in resolution_values]
 
     # We want to save:
     # - the profiles as a 1 pixels image

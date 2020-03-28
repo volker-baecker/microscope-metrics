@@ -100,7 +100,8 @@ def _compute_channel_spots_properties(channel, label_channel, remove_center_cros
                               'weighted_centroid': region.weighted_centroid,
                               'max_intensity': region.max_intensity,
                               'mean_intensity': region.mean_intensity,
-                              'min_intensity': region.min_intensity
+                              'min_intensity': region.min_intensity,
+                              'integrated_intensity': region.mean_intensity * region.area
                               })
     if remove_center_cross:  # Argolight spots pattern contains a central cross that we might want to remove
         largest_area = 0
@@ -118,16 +119,17 @@ def _compute_channel_spots_properties(channel, label_channel, remove_center_cros
     return ch_properties, ch_positions
 
 
-def compute_spots_properties(image, labels, remove_center_cross=True):
+def compute_spots_properties(image, labels, remove_center_cross=True, pixel_size=None):
     """Computes a number of properties for the PSF-like spots found on an image provided they are segmented"""
     # TODO: Verify dimensions of image and labels are the same
     properties = list()
     positions = list()
 
     for c in range(image.shape[-3]):  # TODO: Deal with Time here
-        pr, pos = _compute_channel_spots_properties(image[..., c, :, :],
-                                                    labels[..., c, :, :],
-                                                    remove_center_cross=remove_center_cross)
+        pr, pos = _compute_channel_spots_properties(channel=image[..., c, :, :],
+                                                    label_channel=labels[..., c, :, :],
+                                                    remove_center_cross=remove_center_cross,
+                                                    pixel_size=pixel_size)
         properties.append(pr)
         positions.append(pos)
 
@@ -173,13 +175,15 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
         pairwise_distances = {'channels': (a, b),
                               'coord_of_A': list(),
                               'dist_3d': list(),
-                              'index_of_B': list()
+                              'labels_of_A': list(),
+                              'labels_of_B': list(),
                               }
-        for p, d in zip(positions[a], distances_matrix):
+        for i, (p, d) in enumerate(zip(positions[a], distances_matrix)):
             if d.min() < sigma:
                 pairwise_distances['coord_of_A'].append(tuple(p))
                 pairwise_distances['dist_3d'].append(d.min())
-                pairwise_distances['index_of_B'].append(d.argmin())
+                pairwise_distances['labels_of_A'].append(i)
+                pairwise_distances['labels_of_B'].append(d.argmin())
 
         distances.append(pairwise_distances)
 

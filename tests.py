@@ -17,8 +17,8 @@ from metrics.interface import omero
 from credentials import *
 
 # TODO: these constants should go somewhere else in the future. Basically are recovered by OMERO scripting interface
-# RUN_MODE = 'local'
-RUN_MODE = 'omero'
+RUN_MODE = 'local'
+# RUN_MODE = 'omero'
 
 # spots_image_id = 7
 # vertical_stripes_image_id = 3
@@ -54,10 +54,10 @@ logger.addHandler(ch)
 def get_local_data(path):
     raw_img = imageio.volread(path)
     logger.info(f'Reading image {path}')
-    pixel_sizes = (0.039, 0.039, 0.125)
+    pixel_size = (0.125, 0.039, 0.039)
     pixel_units = 'MICRON'
 
-    return {'image_data': raw_img, 'pixel_sizes': pixel_sizes, 'pixel_units': pixel_units}
+    return {'image_data': raw_img, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
 
 
 def get_omero_data(image_id):
@@ -75,12 +75,25 @@ def get_omero_data(image_id):
         raw_img = np.squeeze(raw_img, 2)
     else:
         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
-    pixel_sizes = omero.get_pixel_sizes(image)
+    pixel_size = omero.get_pixel_size(image)
     pixel_units = omero.get_pixel_units(image)
 
     conn.close()
 
-    return {'image_data': raw_img, 'pixel_sizes': pixel_sizes, 'pixel_units': pixel_units}
+    return {'image_data': raw_img, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
+
+
+def save_spots_data_table(data):
+
+    pass
+
+    # conn = omero.open_connection(username=USER,
+    #                              password=PASSWORD,
+    #                              group=GROUP,
+    #                              port=PORT,
+    #                              host=HOST)
+
+
 
 
 def main(run_mode):
@@ -107,22 +120,24 @@ def main(run_mode):
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
             logger.info(f'Analyzing spots image...')
-            argolight.analyze_spots(spots_image['image_data'],
-                                    spots_image['pixel_sizes'],
-                                    low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                    high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            spots_data = argolight.analyze_spots(image=spots_image['image_data'],
+                                                 pixel_size=spots_image['pixel_size'],
+                                                 pixel_size_units=spots_image['pixel_units'],
+                                                 low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                                 high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            save_spots_data_table(spots_data)
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')
             argolight.analyze_resolution(vertical_res_image['image_data'],
-                                         vertical_res_image['pixel_sizes'],
+                                         vertical_res_image['pixel_size'],
                                          vertical_res_image['pixel_units'],
                                          1)
 
         if al_conf.getboolean('do_horizontal_res'):
             logger.info(f'Analyzing horizontal resolution...')
             argolight.analyze_resolution(horizontal_res_image['image_data'],
-                                         horizontal_res_image['pixel_sizes'],
+                                         horizontal_res_image['pixel_size'],
                                          horizontal_res_image['pixel_units'],
                                          0)
 
