@@ -17,8 +17,8 @@ from metrics.interface import omero
 from credentials import *
 
 # TODO: these constants should go somewhere else in the future. Basically are recovered by OMERO scripting interface
-RUN_MODE = 'local'
-# RUN_MODE = 'omero'
+# RUN_MODE = 'local'
+RUN_MODE = 'omero'
 
 # spots_image_id = 7
 # vertical_stripes_image_id = 3
@@ -28,6 +28,8 @@ vertical_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images
 horizontal_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_005_SIR_ALX.dv/201702_RI510_Argolight-1-1_005_SIR_ALX_THR.ome.tif'
 config_file = 'my_microscope_config.ini'
 
+import os
+print(os.environ['OMERODIR'])
 
 # Creating logging services
 logger = logging.getLogger('metrics')
@@ -85,15 +87,56 @@ def get_omero_data(image_id):
 
 def save_spots_data_table(data):
 
-    pass
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+    names = list()
+    values = list()
 
-    # conn = omero.open_connection(username=USER,
-    #                              password=PASSWORD,
-    #                              group=GROUP,
-    #                              port=PORT,
-    #                              host=HOST)
+    for name, value in data.items():
+        if name != 'labels':
+            names.append(name)
+            values.append(value)
+    try:
+        table = omero.create_annotation_table(connection=conn,
+                                              table_name='AnalysisDate_argolight_D',
+                                              column_names=names,
+                                              column_descriptions=names,
+                                              values=values)
 
+        image = omero.get_image(conn, spots_image_id)
 
+        omero.link_annotation(image, table)
+    finally:
+        conn.close()
+    # We want to save:
+    # A table per image containing the following columns:
+    # - source Image
+    # - Per channel
+    #   + RoiColumn(name='chXX_MaxIntegratedIntensityRoi', description='ROI with the highest integrated intensity.', values)
+    #   + RoiColumn(name='chXX_MinIntegratedIntensityRoi', description='ROI with the lowest integrated intensity.', values)
+    #   - LongArrayColumn(name='chXX_roiCentroidLabels', description='Labels of the centroids ROIs.', size=(verify size), values)
+    #   + LongArrayColumn(name='chXX_roiMaskLabels', description='Labels of the mask ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiVolume', description='Volume of the ROIs.', size=(verify size), values)
+    # + StringColumn(name='roiVolumeUnit', description='Volume units for the ROIs.', size=(max size), values)
+    #   + FloatArrayColumn(name='chXX_roiMinIntensity', description='Minimum intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiMaxIntensity', description='Maximum intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiMeanIntensity', description='Mean intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiIntegratedIntensity', description='Integrated intensity of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiXWeightedCentroid', description='Wighted Centroid X coordinates of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiYWeightedCentroid', description='Wighted Centroid Y coordinates of the ROIs.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_roiZWeightedCentroid', description='Wighted Centroid Z coordinates of the ROIs.', size=(verify size), values)
+    # + StringColumn(name='roiWeightedCentroidUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
+    # - Per channel permutation
+    #   + FloatArrayColumn(name='chXX_chYY_chARoiLabels', description='Labels of the ROIs in channel A.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_chYY_chBRoiLabels', description='Labels of the ROIs in channel B.', size=(verify size), values)
+    #   - FloatArrayColumn(name='chXX_chYY_XDistance', description='Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
+    #   - FloatArrayColumn(name='chXX_chYY_YDistance', description='Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
+    #   - FloatArrayColumn(name='chXX_chYY_ZDistance', description='Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
+    #   + FloatArrayColumn(name='chXX_chYY_3dDistance', description='Distance in 3D between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
+    # + StringColumn(name='DistanceUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
 
 
 def main(run_mode):
@@ -109,8 +152,8 @@ def main(run_mode):
 
     elif run_mode == 'omero':
         spots_image = get_omero_data(spots_image_id)
-        vertical_res_image = get_omero_data(horizontal_stripes_image_id)
-        horizontal_res_image = get_omero_data(vertical_stripes_image_id)
+        # vertical_res_image = get_omero_data(horizontal_stripes_image_id)
+        # horizontal_res_image = get_omero_data(vertical_stripes_image_id)
 
     else:
         raise Exception('run mode not defined')

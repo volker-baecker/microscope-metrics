@@ -183,7 +183,7 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
                 pairwise_distances['coord_of_A'].append(tuple(p))
                 pairwise_distances['dist_3d'].append(d.min())
                 pairwise_distances['labels_of_A'].append(i)
-                pairwise_distances['labels_of_B'].append(d.argmin())
+                pairwise_distances['labels_of_B'].append(d.argmin().item())
 
         distances.append(pairwise_distances)
 

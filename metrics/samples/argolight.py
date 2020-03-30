@@ -1,6 +1,6 @@
 
 from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
-from metrics.plot import plot
+# from metrics.plot import plot
 
 import numpy as np
 from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
@@ -36,42 +36,42 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                                                sigma=2.0,
                                                pixel_size=pixel_size)
 
-    output = dict()
+    output = dict()  # TODO: make this a sorted dict
     # Labels
     output['labels'] = labels
-    output['roiVolumeUnit'] = 'VOXEL'
-    output['roiWeightedCentroidUnits'] = 'PIXEL'
-    output['DistanceUnits'] = pixel_size_units
+    output['roiVolumeUnit'] = ['VOXEL']
+    output['roiWeightedCentroidUnits'] = ['PIXEL']
+    output['DistanceUnits'] = [pixel_size_units[0]]
     for i, ch_spot_prop in enumerate(spots_properties):
         output[f'ch{i:02d}_MaxIntegratedIntensityRoi'] = \
-            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']
+            [ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']]
         output[f'ch{i:02d}_MinIntegratedIntensityRoi'] = \
-            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']
+            [ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']]
         output[f'ch{i:02d}_roiMaskLabels'] = \
             [x['label'] for x in ch_spot_prop]
         output[f'ch{i:02d}_roiVolume'] = \
-            [x['area'] for x in ch_spot_prop]
+            [x['area'].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiMaxIntensity'] = \
-            [x['max_intensity'] for x in ch_spot_prop]
+            [x['max_intensity'].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiMinIntensity'] = \
-            [x['min_intensity'] for x in ch_spot_prop]
+            [x['min_intensity'].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiMeanIntensity'] = \
-            [x['mean_intensity'] for x in ch_spot_prop]
+            [x['mean_intensity'].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiIntegratedIntensity'] = \
-            [x['integrated_intensity'] for x in ch_spot_prop]
+            [x['integrated_intensity'].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiXWeightedCentroid'] = \
-            [x['weighted_centroid'][1] for x in ch_spot_prop]
+            [x['weighted_centroid'][1].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiYWeightedCentroid'] = \
-            [x['weighted_centroid'][2] for x in ch_spot_prop]
+            [x['weighted_centroid'][2].item() for x in ch_spot_prop]
         output[f'ch{i:02d}_roiZWeightedCentroid'] = \
-            [x['weighted_centroid'][0] for x in ch_spot_prop]
+            [x['weighted_centroid'][0].item() for x in ch_spot_prop]
     for i, chs_dist in enumerate(spots_distances):
         output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels'] = \
             chs_dist['labels_of_A']
         output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels'] = \
             chs_dist['labels_of_B']
         output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance'] = \
-            chs_dist['dist_3d']
+            [x.item() for x in chs_dist['dist_3d']]
 
     return output
 
@@ -146,7 +146,7 @@ def analyze_resolution(image, pixel_size, pixel_units, axis):
     # - StringColumn(name='resolutionUnits', description='Measured resolution units.', size=(max size), values)
     # - StringColumn(name='resolutionAngleUnits', description='Measured resolution angle units.', size=(max size), values)
 
-    plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
+    # plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
 
 
 def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=False):
