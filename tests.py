@@ -87,11 +87,11 @@ def get_omero_data(image_id):
 
 def save_spots_data_table(data):
 
-    conn = omero.open_connection(username=USER,
-                                 password=PASSWORD,
-                                 group=GROUP,
-                                 port=PORT,
-                                 host=HOST)
+    conn = omero.open_connection(username=USER2,
+                                 password=PASSWORD2,
+                                 group=GROUP2,
+                                 port=PORT2,
+                                 host=HOST2)
     names = list()
     values = list()
 
@@ -106,7 +106,7 @@ def save_spots_data_table(data):
                                               column_descriptions=names,
                                               values=values)
 
-        image = omero.get_image(conn, spots_image_id)
+        image = omero.get_image(conn, spots_image_id2)
 
         omero.link_annotation(image, table)
     finally:
@@ -163,11 +163,11 @@ def main(run_mode):
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
             logger.info(f'Analyzing spots image...')
-            spots_data = argolight.analyze_spots(image=spots_image['image_data'],
-                                                 pixel_size=spots_image['pixel_size'],
-                                                 pixel_size_units=spots_image['pixel_units'],
-                                                 low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                                 high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            spots_labels, spots_data = argolight.analyze_spots(image=spots_image['image_data'],
+                                                               pixel_size=spots_image['pixel_size'],
+                                                               pixel_size_units=spots_image['pixel_units'],
+                                                               low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                                               high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
             save_spots_data_table(spots_data)
 
         if al_conf.getboolean('do_vertical_res'):

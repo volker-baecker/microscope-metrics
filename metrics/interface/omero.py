@@ -360,13 +360,13 @@ def _create_table(column_names, columns_descriptions, values, types=None):
             v_type = types[i]
         else:
             if isinstance(v[0], (list, tuple)):
-                v_type = list(type(v[0][0]))
+                v_type = [type(v[0][0])]
             else:
                 v_type = type(v[0])
 
         # Verify that all elements in values are the same type
-        if not all(isinstance(x, v_type) for x in v):
-            raise TypeError(f'Not all elements in column {cn} are of the same type')
+        # if not all(isinstance(x, v_type) for x in v):
+        #     raise TypeError(f'Not all elements in column {cn} are of the same type')
 
         if v_type == str:
             size = len(max(v, key=len)) * 2  # We assume here that the max size is double of what we really have...
