@@ -36,71 +36,83 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                                                sigma=2.0,
                                                pixel_size=pixel_size)
 
-    output = dict()  # TODO: make this a sorted dict
-    # Labels
-    # output['labels'] = labels
-    output['roiVolumeUnit'] = ['VOXEL']
-    output['roiWeightedCentroidUnits'] = ['PIXEL']
-    output['DistanceUnits'] = [pixel_size_units[0]]
+    table_col_names = list()
+    table_col_desc = list()
+    table_data = list()
+
+    table_col_names.append('roiVolumeUnit')
+    table_col_desc.append('Volume units for the ROIs.')
+    table_data.append(['VOXEL'])
+
+    table_col_names.append('roiWeightedCentroidUnits')
+    table_col_desc.append('Weighted Centroid coordinates units for the ROIs.')
+    table_data.append(['PIXEL'])
+
+    table_col_names.append('Distance3dUnits')
+    table_col_desc.append('Weighted Centroid 3d distances units for the ROIs.')
+    table_data.append([pixel_size_units[0]])
+
     for i, ch_spot_prop in enumerate(spots_properties):
-        output[f'ch{i:02d}_MaxIntegratedIntensityRoi'] = \
-            [ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']]
-        output[f'ch{i:02d}_MinIntegratedIntensityRoi'] = \
-            [ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']]
-        output[f'ch{i:02d}_roiMaskLabels'] = \
-            [[x['label'] for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiVolume'] = \
-            [[x['area'].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiMaxIntensity'] = \
-            [[x['max_intensity'].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiMinIntensity'] = \
-            [[x['min_intensity'].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiMeanIntensity'] = \
-            [[x['mean_intensity'].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiIntegratedIntensity'] = \
-            [[x['integrated_intensity'].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiXWeightedCentroid'] = \
-            [[x['weighted_centroid'][1].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiYWeightedCentroid'] = \
-            [[x['weighted_centroid'][2].item() for x in ch_spot_prop]]
-        output[f'ch{i:02d}_roiZWeightedCentroid'] = \
-            [[x['weighted_centroid'][0].item() for x in ch_spot_prop]]
+        table_col_names.append(f'ch{i:02d}_MaxIntegratedIntensityRoi')
+        table_col_desc.append('ROI with the highest integrated intensity.')
+        table_data.append([ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']])
+
+        table_col_names.append(f'ch{i:02d}_MinIntegratedIntensityRoi')
+        table_col_desc.append('ROI with the lowest integrated intensity.')
+        table_data.append([ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']])
+
+    for i, ch_spot_prop in enumerate(spots_properties):
+
+        table_col_names.append(f'ch{i:02d}_roiMaskLabels')
+        table_col_desc.append('Labels of the mask ROIs.')
+        table_data.append([[x['label'] for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiVolume')
+        table_col_desc.append('Volume of the ROIs.')
+        table_data.append([[x['area'].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiMaxIntensity')
+        table_col_desc.append('Maximum intensity of the ROIs.')
+        table_data.append([[x['max_intensity'].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiMinIntensity')
+        table_col_desc.append('Minimum intensity of the ROIs.')
+        table_data.append([[x['min_intensity'].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiMeanIntensity')
+        table_col_desc.append('Mean intensity of the ROIs.')
+        table_data.append([[x['mean_intensity'].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiIntegratedIntensity')
+        table_col_desc.append('Integrated intensity of the ROIs.')
+        table_data.append([[x['integrated_intensity'].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiXWeightedCentroid')
+        table_col_desc.append('Weighted Centroid X coordinates of the ROIs.')
+        table_data.append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiYWeightedCentroid')
+        table_col_desc.append('Weighted Centroid Y coordinates of the ROIs.')
+        table_data.append([[x['weighted_centroid'][2].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_roiZWeightedCentroid')
+        table_col_desc.append('Weighted Centroid Z coordinates of the ROIs.')
+        table_data.append([[x['weighted_centroid'][0].item() for x in ch_spot_prop]])
+
     for i, chs_dist in enumerate(spots_distances):
-        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels'] = \
-            [chs_dist['labels_of_A']]
-        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels'] = \
-            [chs_dist['labels_of_B']]
-        output[f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance'] = \
-            [[x.item() for x in chs_dist['dist_3d']]]
+        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels')
+        table_col_desc.append('Labels of the ROIs in channel A.')
+        table_data.append([chs_dist['labels_of_A']])
 
-    return labels, output
+        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels')
+        table_col_desc.append('Labels of the ROIs in channel B.')
+        table_data.append([chs_dist['labels_of_B']])
 
-    # We want to save:
-    # A table per image containing the following columns:
-    # - source Image
-    # - Per channel
-    #   + RoiColumn(name='chXX_MaxIntegratedIntensityRoi', description='ROI with the highest integrated intensity.', values)
-    #   + RoiColumn(name='chXX_MinIntegratedIntensityRoi', description='ROI with the lowest integrated intensity.', values)
-    #   - LongArrayColumn(name='chXX_roiCentroidLabels', description='Labels of the centroids ROIs.', size=(verify size), values)
-    #   + LongArrayColumn(name='chXX_roiMaskLabels', description='Labels of the mask ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiVolume', description='Volume of the ROIs.', size=(verify size), values)
-    # + StringColumn(name='roiVolumeUnit', description='Volume units for the ROIs.', size=(max size), values)
-    #   + FloatArrayColumn(name='chXX_roiMinIntensity', description='Minimum intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiMaxIntensity', description='Maximum intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiMeanIntensity', description='Mean intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiIntegratedIntensity', description='Integrated intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiXWeightedCentroid', description='Wighted Centroid X coordinates of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiYWeightedCentroid', description='Wighted Centroid Y coordinates of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiZWeightedCentroid', description='Wighted Centroid Z coordinates of the ROIs.', size=(verify size), values)
-    # + StringColumn(name='roiWeightedCentroidUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
-    # - Per channel permutation
-    #   + FloatArrayColumn(name='chXX_chYY_chARoiLabels', description='Labels of the ROIs in channel A.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_chYY_chBRoiLabels', description='Labels of the ROIs in channel B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_XDistance', description='Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_YDistance', description='Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_ZDistance', description='Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_chYY_3dDistance', description='Distance in 3D between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    # + StringColumn(name='DistanceUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
+        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance')
+        table_col_desc.append('Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
+        table_data.append([[x.item() for x in chs_dist['dist_3d']]])
+
+    return labels, table_col_names, table_col_desc, table_data
 
     # plot.plot_homogeneity_map(raw_stack=image,
     #                           spots_properties=spots_properties,

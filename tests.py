@@ -85,28 +85,22 @@ def get_omero_data(image_id):
     return {'image_data': raw_img, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
 
 
-def save_spots_data_table(data):
+def save_spots_data_table(table_name, names, desc, data):
 
-    conn = omero.open_connection(username=USER2,
-                                 password=PASSWORD2,
-                                 group=GROUP2,
-                                 port=PORT2,
-                                 host=HOST2)
-    names = list()
-    values = list()
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
 
-    for name, value in data.items():
-        if name != 'labels':
-            names.append(name)
-            values.append(value)
     try:
         table = omero.create_annotation_table(connection=conn,
-                                              table_name='AnalysisDate_argolight_D',
+                                              table_name=table_name,
                                               column_names=names,
-                                              column_descriptions=names,
-                                              values=values)
+                                              column_descriptions=desc,
+                                              values=data)
 
-        image = omero.get_image(conn, spots_image_id2)
+        image = omero.get_image(conn, spots_image_id)
 
         omero.link_annotation(image, table)
     finally:
@@ -163,12 +157,13 @@ def main(run_mode):
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
             logger.info(f'Analyzing spots image...')
-            spots_labels, spots_data = argolight.analyze_spots(image=spots_image['image_data'],
-                                                               pixel_size=spots_image['pixel_size'],
-                                                               pixel_size_units=spots_image['pixel_units'],
-                                                               low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                                               high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
-            save_spots_data_table(spots_data)
+            labels, names, desc, data = argolight.analyze_spots(image=spots_image['image_data'],
+                                                                pixel_size=spots_image['pixel_size'],
+                                                                pixel_size_units=spots_image['pixel_units'],
+                                                                low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                                                high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+
+            save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')
