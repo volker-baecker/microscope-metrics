@@ -157,11 +157,11 @@ def main(run_mode):
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
             logger.info(f'Analyzing spots image...')
-            labels, names, desc, data = argolight.analyze_spots(image=spots_image['image_data'],
-                                                                pixel_size=spots_image['pixel_size'],
-                                                                pixel_size_units=spots_image['pixel_units'],
-                                                                low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                                                high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            labels, names, desc, data, key_values = argolight.analyze_spots(image=spots_image['image_data'],
+                                                                            pixel_size=spots_image['pixel_size'],
+                                                                            pixel_size_units=spots_image['pixel_units'],
+                                                                            low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                                                            high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
 
             save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
 

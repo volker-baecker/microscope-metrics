@@ -1,4 +1,3 @@
-
 from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 # from metrics.plot import plot
 
@@ -20,7 +19,6 @@ module_logger = logging.getLogger('metrics.samples.argolight')
 # ___________________________________________
 
 def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_corr_factors):
-
     labels = segment_image(image=image,
                            min_distance=30,
                            sigma=(1, 3, 3),
@@ -36,10 +34,16 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                                                sigma=2.0,
                                                pixel_size=pixel_size)
 
+    # Return some key-value pairs
+    key_values = dict()
+    # TODO: Median z-distance
+
+    # Return a table with detailed data
     table_col_names = list()
     table_col_desc = list()
     table_data = list()
 
+    # Populating the data
     table_col_names.append('roiVolumeUnit')
     table_col_desc.append('Volume units for the ROIs.')
     table_data.append(['VOXEL'])
@@ -53,16 +57,22 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     table_data.append([pixel_size_units[0]])
 
     for i, ch_spot_prop in enumerate(spots_properties):
-        table_col_names.append(f'ch{i:02d}_MaxIntegratedIntensityRoi')
-        table_col_desc.append('ROI with the highest integrated intensity.')
-        table_data.append([ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(max(x['integrated_intensity'] for x in ch_spot_prop))]['label']])
+        key_values[f'Nr_of_spots_ch{i:02d}'] = len(ch_spot_prop)
 
-        table_col_names.append(f'ch{i:02d}_MinIntegratedIntensityRoi')
-        table_col_desc.append('ROI with the lowest integrated intensity.')
-        table_data.append([ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(min(x['integrated_intensity'] for x in ch_spot_prop))]['label']])
+        key_values[f'Max_Intensity_ch{i:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
+        key_values[f'Max_Intensity_Roi_ch{i:02d}'] = \
+        ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{i:02d}'])][
+            'label']
+
+        key_values[f'Min_Intensity_ch{i:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
+        key_values[f'Min_Intensity_Roi_ch{i:02d}'] = \
+        ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{i:02d}'])][
+            'label']
+
+        key_values[f'Min-Max_intensity_ratio_ch{i:02d}'] = key_values[f'Min_Intensity_ch{i:02d}'] / key_values[
+            f'Max_Intensity_ch{i:02d}']
 
     for i, ch_spot_prop in enumerate(spots_properties):
-
         table_col_names.append(f'ch{i:02d}_roiMaskLabels')
         table_col_desc.append('Labels of the mask ROIs.')
         table_data.append([[x['label'] for x in ch_spot_prop]])
@@ -109,10 +119,14 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
         table_data.append([chs_dist['labels_of_B']])
 
         table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance')
-        table_col_desc.append('Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
+        table_col_desc.append(
+            'Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
         table_data.append([[x.item() for x in chs_dist['dist_3d']]])
 
-    return labels, table_col_names, table_col_desc, table_data
+        key_values[f'Median_3d_dist_h{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+            median(table_data[-1][-1])
+
+    return labels, table_col_names, table_col_desc, table_data, key_values
 
     # plot.plot_homogeneity_map(raw_stack=image,
     #                           spots_properties=spots_properties,
@@ -123,6 +137,7 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     #                          x_dim=image.shape[-2],
     #                          y_dim=image.shape[-1])
     #
+
 
 # _____________________________________
 #
@@ -192,7 +207,7 @@ def _compute_channel_resolution(channel, axis, prominence, do_angle_refinement=F
                          axis=axis,
                          weights=weight_profile)
 
-    normalized_profile = (profile - np.min(profile))/np.ptp(profile)
+    normalized_profile = (profile - np.min(profile)) / np.ptp(profile)
 
     # Find peaks: We implement Rayleigh limits that will be refined downstream
     peaks, properties = find_peaks(normalized_profile,
@@ -241,4 +256,3 @@ def compute_resolution(image, axis, prominence=0.1, do_angle_refinement=False):
 # # plt.imshow(np.log(fft_3D[2, 23, :, :]))  # , cmap='hot')
 # plt.show()
 #
-
