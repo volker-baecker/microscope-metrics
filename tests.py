@@ -94,7 +94,7 @@ def save_spots_data_table(table_name, names, desc, data):
                                  host=HOST)
 
     try:
-        table = omero.create_annotation_table(connection=conn,
+        table_ann = omero.create_annotation_table(connection=conn,
                                               table_name=table_name,
                                               column_names=names,
                                               column_descriptions=desc,
@@ -102,35 +102,48 @@ def save_spots_data_table(table_name, names, desc, data):
 
         image = omero.get_image(conn, spots_image_id)
 
-        omero.link_annotation(image, table)
+        omero.link_annotation(image, table_ann)
     finally:
         conn.close()
-    # We want to save:
-    # A table per image containing the following columns:
-    # - source Image
-    # - Per channel
-    #   + RoiColumn(name='chXX_MaxIntegratedIntensityRoi', description='ROI with the highest integrated intensity.', values)
-    #   + RoiColumn(name='chXX_MinIntegratedIntensityRoi', description='ROI with the lowest integrated intensity.', values)
-    #   - LongArrayColumn(name='chXX_roiCentroidLabels', description='Labels of the centroids ROIs.', size=(verify size), values)
-    #   + LongArrayColumn(name='chXX_roiMaskLabels', description='Labels of the mask ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiVolume', description='Volume of the ROIs.', size=(verify size), values)
-    # + StringColumn(name='roiVolumeUnit', description='Volume units for the ROIs.', size=(max size), values)
-    #   + FloatArrayColumn(name='chXX_roiMinIntensity', description='Minimum intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiMaxIntensity', description='Maximum intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiMeanIntensity', description='Mean intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiIntegratedIntensity', description='Integrated intensity of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiXWeightedCentroid', description='Wighted Centroid X coordinates of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiYWeightedCentroid', description='Wighted Centroid Y coordinates of the ROIs.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_roiZWeightedCentroid', description='Wighted Centroid Z coordinates of the ROIs.', size=(verify size), values)
-    # + StringColumn(name='roiWeightedCentroidUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
-    # - Per channel permutation
-    #   + FloatArrayColumn(name='chXX_chYY_chARoiLabels', description='Labels of the ROIs in channel A.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_chYY_chBRoiLabels', description='Labels of the ROIs in channel B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_XDistance', description='Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_YDistance', description='Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   - FloatArrayColumn(name='chXX_chYY_ZDistance', description='Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    #   + FloatArrayColumn(name='chXX_chYY_3dDistance', description='Distance in 3D between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.', size=(verify size), values)
-    # + StringColumn(name='DistanceUnits', description='Wighted Centroid coordinates units for the ROIs.', size=(max size), values)
+
+
+def save_spots_data_key_values(key_values):
+
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+    try:
+        map_ann = omero.create_annotation_map(connection=conn,
+                                              annotation=key_values,
+                                              client_editable=True)
+        image = omero.get_image(conn, spots_image_id)
+        omero.link_annotation(image, map_ann)
+
+    finally:
+        conn.close()
+
+
+def create_laser_power_keys(laser_lines, units):
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+
+    key_values = {str(k): '' for k in laser_lines}
+    key_values['power_units'] = units
+
+    try:
+        map_ann = omero.create_annotation_map(connection=conn,
+                                              annotation=key_values,
+                                              client_editable=True)
+        dataset = omero.get_dataset(conn, dataset_id)
+        omero.link_annotation(dataset, map_ann)
+
+    finally:
+        conn.close()
 
 
 def main(run_mode):
@@ -152,6 +165,17 @@ def main(run_mode):
     else:
         raise Exception('run mode not defined')
 
+    if config.has_section('EXCITATION_POWER'):
+        pm_conf = config['EXCITATION_POWER']
+        if pm_conf['do_laser_power_measurement']:
+            logger.info(f'Running laser power measurements')
+            try:
+                laser_lines = pm_conf.getlist('laser_power_measurement_wavelengths')
+            except KeyError as e:
+                laser_lines = config['WAVELENGTHS'].getlist('excitation')
+            units = pm_conf['laser_power_measurement_units']
+            create_laser_power_keys(laser_lines, units)
+
     if config.has_section('ARGOLIGHT'):
         logger.info(f'Running analysis on Argolight samples')
         al_conf = config['ARGOLIGHT']
@@ -164,6 +188,8 @@ def main(run_mode):
                                                                             high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
 
             save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
+
+            save_spots_data_key_values(key_values)
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')

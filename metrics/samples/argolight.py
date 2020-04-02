@@ -61,16 +61,13 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
 
         key_values[f'Max_Intensity_ch{i:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
         key_values[f'Max_Intensity_Roi_ch{i:02d}'] = \
-        ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{i:02d}'])][
-            'label']
+            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{i:02d}'])]['label']
 
         key_values[f'Min_Intensity_ch{i:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
         key_values[f'Min_Intensity_Roi_ch{i:02d}'] = \
-        ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{i:02d}'])][
-            'label']
+            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{i:02d}'])]['label']
 
-        key_values[f'Min-Max_intensity_ratio_ch{i:02d}'] = key_values[f'Min_Intensity_ch{i:02d}'] / key_values[
-            f'Max_Intensity_ch{i:02d}']
+        key_values[f'Min-Max_intensity_ratio_ch{i:02d}'] = key_values[f'Min_Intensity_ch{i:02d}'] / key_values[f'Max_Intensity_ch{i:02d}']
 
     for i, ch_spot_prop in enumerate(spots_properties):
         table_col_names.append(f'ch{i:02d}_roiMaskLabels')
@@ -123,8 +120,10 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
             'Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
         table_data.append([[x.item() for x in chs_dist['dist_3d']]])
 
-        key_values[f'Median_3d_dist_h{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+        key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
             median(table_data[-1][-1])
+
+    key_values['Distance_units'] = pixel_size_units[0]
 
     return labels, table_col_names, table_col_desc, table_data, key_values
 
