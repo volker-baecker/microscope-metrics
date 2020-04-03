@@ -184,6 +184,8 @@ def save_labels_image(labels_image, name, description, dataset_id, channel_list)
     conn.createImageFromNumpySeq(zctPlanes=zct_generator,
                                  imageName=name,
                                  sizeZ=labels_image.shape[0],
+                                 sizeC=labels_image.shape[1],
+                                 sizeT=labels_image.shape[2],
                                  description=description,
                                  dataset=dataset,
                                  channelList=channel_list)
