@@ -169,6 +169,33 @@ def get_intensities(image, z_range=None, c_range=None, t_range=None, x_range=Non
     return intensities
 
 
+def create_image_from_ndarray(connection: gw.BlitzGateway, data, image_name, image_description, dataset=None):
+    """
+    Creates a new image in OMERO from a n dimensional numpy array.
+    :param connection: The connection object to OMERO
+    :param data: the ndarray. Must be a 5D array with dimensions in the order zctxy
+    :param image_name:
+    :param image_description:
+    :param dataset:
+    :return:
+    """
+    zct_list = list(product(range(data.shape[0]),
+                            range(data.shape[1]),
+                            range(data.shape[2])))
+    zct_generator = (data[z, c, t, :, :] for z, c, t in zct_list)
+
+    connection.createImageFromNumpySeq(zctPlanes=zct_generator,
+                                       imageName=image_name,
+                                       sizeZ=1,
+                                       sizeC=1,
+                                       sizeT=1,
+                                       description=None,
+                                       dataset=None,
+                                       sourceImageId=None,
+                                       channelList=None
+                                       )
+
+
 ############### Creating projects and datasets #####################
 
 def create_project(connection, project_name):
@@ -179,8 +206,11 @@ def create_project(connection, project_name):
     return new_project
 
 
-def create_dataset(connection, dataset_name, dataset_description=None, parent_project=None):
-    new_dataset = model.DatasetI()
+def create_dataset(connection: gw.BlitzGateway, dataset_name, dataset_description=None, parent_project=None):
+    gw.DatasetWrapper(conn=connection)
+    new_dataset = gw.DatasetWrapper(conn=connection,
+                                    )
+    # new_dataset = model.DatasetI()
     new_dataset.setName(rtypes.rstring(dataset_name))
     if dataset_description:
         new_dataset.setDescription(rtypes.rstring(dataset_description))
@@ -426,7 +456,7 @@ def create_annotation_table(connection, table_name, column_names, column_descrip
 
 
 def create_roi(connection, image, shapes):
-    """A pass through to create a roi into an image"""
+    """A pass through to link a roi to an image"""
     return _create_roi(connection, image, shapes)
 
 
@@ -465,13 +495,13 @@ def _set_shape_properties(shape, name=None,
     shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
 
 
-def create_shape_point(x_pos, y_pos, z_pos, t_pos, point_name=None):
+def create_shape_point(x_pos, y_pos, z_pos, t_pos=0, shape_name=None):
     point = model.PointI()
     point.x = rtypes.rdouble(x_pos)
     point.y = rtypes.rdouble(y_pos)
     point.theZ = rtypes.rint(z_pos)
     point.theT = rtypes.rint(t_pos)
-    _set_shape_properties(point, name=point_name)
+    _set_shape_properties(point, name=shape_name)
 
     return point
 

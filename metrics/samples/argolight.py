@@ -70,39 +70,39 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
         key_values[f'Min-Max_intensity_ratio_ch{i:02d}'] = key_values[f'Min_Intensity_ch{i:02d}'] / key_values[f'Max_Intensity_ch{i:02d}']
 
     for i, ch_spot_prop in enumerate(spots_properties):
-        table_col_names.append(f'ch{i:02d}_roiMaskLabels')
+        table_col_names.append(f'ch{i:02d}_MaskLabels')
         table_col_desc.append('Labels of the mask ROIs.')
         table_data.append([[x['label'] for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiVolume')
+        table_col_names.append(f'ch{i:02d}_Volume')
         table_col_desc.append('Volume of the ROIs.')
         table_data.append([[x['area'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiMaxIntensity')
+        table_col_names.append(f'ch{i:02d}_MaxIntensity')
         table_col_desc.append('Maximum intensity of the ROIs.')
         table_data.append([[x['max_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiMinIntensity')
+        table_col_names.append(f'ch{i:02d}_MinIntensity')
         table_col_desc.append('Minimum intensity of the ROIs.')
         table_data.append([[x['min_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiMeanIntensity')
+        table_col_names.append(f'ch{i:02d}_MeanIntensity')
         table_col_desc.append('Mean intensity of the ROIs.')
         table_data.append([[x['mean_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiIntegratedIntensity')
+        table_col_names.append(f'ch{i:02d}_IntegratedIntensity')
         table_col_desc.append('Integrated intensity of the ROIs.')
         table_data.append([[x['integrated_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiXWeightedCentroid')
+        table_col_names.append(f'ch{i:02d}_XWeightedCentroid')
         table_col_desc.append('Weighted Centroid X coordinates of the ROIs.')
-        table_data.append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
-
-        table_col_names.append(f'ch{i:02d}_roiYWeightedCentroid')
-        table_col_desc.append('Weighted Centroid Y coordinates of the ROIs.')
         table_data.append([[x['weighted_centroid'][2].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{i:02d}_roiZWeightedCentroid')
+        table_col_names.append(f'ch{i:02d}_YWeightedCentroid')
+        table_col_desc.append('Weighted Centroid Y coordinates of the ROIs.')
+        table_data.append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
+
+        table_col_names.append(f'ch{i:02d}_ZWeightedCentroid')
         table_col_desc.append('Weighted Centroid Z coordinates of the ROIs.')
         table_data.append([[x['weighted_centroid'][0].item() for x in ch_spot_prop]])
 

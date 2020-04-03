@@ -13,6 +13,7 @@ from metrics.samples import argolight
 # TODO: these imports should go somewhere else in the future
 import imageio
 import numpy as np
+from itertools import product
 from metrics.interface import omero
 from credentials import *
 
@@ -27,9 +28,6 @@ spots_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI5
 vertical_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_004_SIR_ALX.dv/201702_RI510_Argolight-1-1_004_SIR_ALX_THR.ome.tif'
 horizontal_stripes_image_path = '/Users/julio/PycharmProjects/OMERO.metrics/Images/201702_RI510_Argolight-1-1_005_SIR_ALX.dv/201702_RI510_Argolight-1-1_005_SIR_ALX_THR.ome.tif'
 config_file = 'my_microscope_config.ini'
-
-import os
-print(os.environ['OMERODIR'])
 
 # Creating logging services
 logger = logging.getLogger('metrics')
@@ -68,8 +66,8 @@ def get_omero_data(image_id):
                                  group=GROUP,
                                  port=PORT,
                                  host=HOST)
-
     image = omero.get_image(conn, image_id)
+    image_name = image.getName()
     raw_img = omero.get_intensities(image)
     # Images from OMERO come in zctxy dimensions and locally as zcxy.
     # The easyest for the moment is to remove t from the omero image
@@ -82,7 +80,7 @@ def get_omero_data(image_id):
 
     conn.close()
 
-    return {'image_data': raw_img, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
+    return {'image_data': raw_img, 'image_name': image_name, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
 
 
 def save_spots_data_table(table_name, names, desc, data):
@@ -146,6 +144,52 @@ def create_laser_power_keys(laser_lines, units):
         conn.close()
 
 
+def save_spots_point_rois(names: list, data: list, nb_channels=4):
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+    image = omero.get_image(conn, spots_image_id)
+
+    for c in range(nb_channels):
+        shapes = list()
+        for x, y, z, l in zip(data[names.index(f'ch{c:02d}_XWeightedCentroid')][0],
+                              data[names.index(f'ch{c:02d}_YWeightedCentroid')][0],
+                              data[names.index(f'ch{c:02d}_ZWeightedCentroid')][0],
+                              data[names.index(f'ch{c:02d}_MaskLabels')][0],
+                              ):
+            shapes.append(omero.create_shape_point(x, y, z, shape_name=f'ch{c:02d}_{l}'))
+
+        omero.create_roi(connection=conn,
+                         image=image,
+                         shapes=shapes)
+
+    conn.close()
+
+
+def save_labels_image(labels_image, name, description, dataset_id, channel_list):
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+    zct_list = list(product(range(labels_image.shape[0]),
+                            range(labels_image.shape[1]),
+                            range(labels_image.shape[2])))
+    zct_generator = (labels_image[z, c, t, :, :] for z, c, t in zct_list)
+
+    dataset = conn.getObject('Dataset', dataset_id)
+
+    conn.createImageFromNumpySeq(zctPlanes=zct_generator,
+                                 imageName=name,
+                                 sizeZ=labels_image.shape[0],
+                                 description=description,
+                                 dataset=dataset,
+                                 channelList=channel_list)
+    conn.close()
+
+
 def main(run_mode):
     logger.info('Metrics started')
 
@@ -186,10 +230,18 @@ def main(run_mode):
                                                                             pixel_size_units=spots_image['pixel_units'],
                                                                             low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
                                                                             high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+            labels = np.expand_dims(labels, 2)
+            save_labels_image(labels_image=labels,
+                              name=f'{spots_image["image_name"]}_rois',
+                              description='Image with detected spots labels. Image intensities correspond to roi labels',  # TODO: add link reference to the raw image
+                              dataset_id=dataset_id,
+                              channel_list=al_conf.getlist('wavelengths'))
 
-            save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
-
-            save_spots_data_key_values(key_values)
+            # save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
+            #
+            # save_spots_data_key_values(key_values)
+            #
+            # save_spots_point_rois(names, data, nb_channels=len(al_conf.getlist('wavelengths')))
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')
