@@ -2,6 +2,34 @@
 
 from configparser import ConfigParser
 import json
+from scipy import special
+import numpy as np
+
+
+## Some useful functions
+
+
+# def airy_fun(x, centre, a, exp):  # , amp, bg):
+#     if (x - centre) == 0:
+#         return a * .5 ** exp
+#     else:
+#         return a * (special.j1(x - centre) / (x - centre)) ** exp
+#
+#
+# def multi_airy_fun(x, *params):
+#     y = np.zeros_like(x)
+#     for i in range(0, len(params), 3):
+#         y = y + airy_fun(x, params[i], params[i+1], params[i+2])
+#     return y
+def airy_fun(x, centre, amp):  # , amp, bg):
+    return amp * (special.j1(x - centre) / (x - centre)) ** 2
+
+
+def multi_airy_fun(x, *params):
+    y = np.zeros_like(x)
+    for i in range(0, len(params), 2):
+        y = y + airy_fun(x, params[i], params[i+1])
+    return y
 
 
 def wavelength_to_rgb(wavelength, gamma=0.8):

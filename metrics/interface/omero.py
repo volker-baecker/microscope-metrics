@@ -90,13 +90,16 @@ def get_image_shape(image):
     return image_shape
 
 
-def get_pixel_size(image):
+def get_pixel_size(image, order='ZXY'):
     pixels = image.getPrimaryPixels()
 
-    pixel_size = (pixels.getPhysicalSizeX().getValue(),
-                   pixels.getPhysicalSizeY().getValue(),
-                   pixels.getPhysicalSizeZ().getValue())
-    return pixel_size
+    order = order.upper()
+    if order not in ['ZXY', 'ZYX', 'XYZ', 'XZY', 'YXZ', 'YZX']:
+        raise ValueError('The provided order for the axis is not valid')
+    pixel_sizes = tuple()
+    for a in order:
+        pixel_sizes += (getattr(pixels, f'getPhysicalSize{a}')().getValue(), )
+    return pixel_sizes
 
 
 def get_pixel_units(image):

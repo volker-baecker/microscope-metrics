@@ -83,7 +83,7 @@ def get_omero_data(image_id):
     return {'image_data': raw_img, 'image_name': image_name, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
 
 
-def save_spots_data_table(table_name, names, desc, data):
+def save_data_table(table_name, names, desc, data, image_id):
 
     conn = omero.open_connection(username=USER,
                                  password=PASSWORD,
@@ -93,19 +93,19 @@ def save_spots_data_table(table_name, names, desc, data):
 
     try:
         table_ann = omero.create_annotation_table(connection=conn,
-                                              table_name=table_name,
-                                              column_names=names,
-                                              column_descriptions=desc,
-                                              values=data)
+                                                  table_name=table_name,
+                                                  column_names=names,
+                                                  column_descriptions=desc,
+                                                  values=data)
 
-        image = omero.get_image(conn, spots_image_id)
+        image = omero.get_image(conn, image_id)
 
         omero.link_annotation(image, table_ann)
     finally:
         conn.close()
 
 
-def save_spots_data_key_values(key_values):
+def save_data_key_values(key_values, image_id):
 
     conn = omero.open_connection(username=USER,
                                  password=PASSWORD,
@@ -116,14 +116,14 @@ def save_spots_data_key_values(key_values):
         map_ann = omero.create_annotation_map(connection=conn,
                                               annotation=key_values,
                                               client_editable=True)
-        image = omero.get_image(conn, spots_image_id)
+        image = omero.get_image(conn, image_id)
         omero.link_annotation(image, map_ann)
 
     finally:
         conn.close()
 
 
-def create_laser_power_keys(laser_lines, units):
+def create_laser_power_keys(laser_lines, units, dataset_id):
     conn = omero.open_connection(username=USER,
                                  password=PASSWORD,
                                  group=GROUP,
@@ -144,13 +144,14 @@ def create_laser_power_keys(laser_lines, units):
         conn.close()
 
 
-def save_spots_point_rois(names: list, data: list, nb_channels=4):
+def save_spots_point_rois(names: list, data: list, image_id):
     conn = omero.open_connection(username=USER,
                                  password=PASSWORD,
                                  group=GROUP,
                                  port=PORT,
                                  host=HOST)
-    image = omero.get_image(conn, spots_image_id)
+    image = omero.get_image(conn, image_id)
+    nb_channels = image.getSizeC()
 
     for c in range(nb_channels):
         shapes = list()
@@ -168,7 +169,52 @@ def save_spots_point_rois(names: list, data: list, nb_channels=4):
     conn.close()
 
 
-def save_labels_image(labels_image, name, description, dataset_id, channel_list):
+def save_line_rois(data: dict, image_id):
+    conn = omero.open_connection(username=USER,
+                                 password=PASSWORD,
+                                 group=GROUP,
+                                 port=PORT,
+                                 host=HOST)
+    image = omero.get_image(conn, image_id)
+    nb_channels = image.getSizeC()
+
+    for c in range(nb_channels):
+        shapes = list()
+        for l in range(len(data[f'ch{c:02d}_peak_positions'])):
+            for p in range(2):
+                if data['resolution_axis'] == 1:  # Y resolution -> horizontal rois
+                    axis_len = image.getSizeX()
+                    x1_pos = int((axis_len / 2) - (axis_len * data['measured_band'] / 2))
+                    y1_pos = data[f'ch{c:02d}_peak_positions'][l][p]
+                    x2_pos = int((axis_len / 2) + (axis_len * data['measured_band'] / 2))
+                    y2_pos = data[f'ch{c:02d}_peak_positions'][l][p]
+                elif data['resolution_axis'] == 2:  # X resolution -> vertical rois
+                    axis_len = image.getSizeY()
+                    y1_pos = int((axis_len / 2) - (axis_len * data['measured_band'] / 2))
+                    x1_pos = data[f'ch{c:02d}_peak_positions'][l][p]
+                    y2_pos = int((axis_len / 2) + (axis_len * data['measured_band'] / 2))
+                    x2_pos = data[f'ch{c:02d}_peak_positions'][l][p]
+                else:
+                    raise ValueError('Only axis 1 and 2 (X and Y) are supported')
+
+                line = omero.create_shape_line(x1_pos=x1_pos + .5,
+                                               y1_pos=y1_pos + .5,
+                                               x2_pos=x2_pos + .5,
+                                               y2_pos=y2_pos + .5,
+                                               z_pos=data[f'ch{c:02d}_focus'],
+                                               t_pos=0,
+                                               line_name=f'ch{c:02d}_{l}_{p}',
+                                               # stroke_color=,
+                                               stroke_width=2
+                                               )
+                shapes.append(line)
+
+        omero.create_roi(connection=conn, image=image, shapes=shapes)
+
+    conn.close()
+
+
+def save_labels_image(labels_image, name, description, dataset_id, source_image_id):
     conn = omero.open_connection(username=USER,
                                  password=PASSWORD,
                                  group=GROUP,
@@ -188,7 +234,7 @@ def save_labels_image(labels_image, name, description, dataset_id, channel_list)
                                  sizeT=labels_image.shape[2],
                                  description=description,
                                  dataset=dataset,
-                                 channelList=channel_list)
+                                 sourceImageId=source_image_id)
     conn.close()
 
 
@@ -204,9 +250,9 @@ def main(run_mode):
         horizontal_res_image = get_local_data(vertical_stripes_image_path)
 
     elif run_mode == 'omero':
-        spots_image = get_omero_data(spots_image_id)
-        # vertical_res_image = get_omero_data(horizontal_stripes_image_id)
-        # horizontal_res_image = get_omero_data(vertical_stripes_image_id)
+        # spots_image = get_omero_data(spots_image_id)
+        vertical_res_image = get_omero_data(horizontal_stripes_image_id)
+        horizontal_res_image = get_omero_data(vertical_stripes_image_id)
 
     else:
         raise Exception('run mode not defined')
@@ -220,7 +266,7 @@ def main(run_mode):
             except KeyError as e:
                 laser_lines = config['WAVELENGTHS'].getlist('excitation')
             units = pm_conf['laser_power_measurement_units']
-            create_laser_power_keys(laser_lines, units)
+            create_laser_power_keys(laser_lines, units, dataset_id)
 
     if config.has_section('ARGOLIGHT'):
         logger.info(f'Running analysis on Argolight samples')
@@ -237,27 +283,47 @@ def main(run_mode):
                               name=f'{spots_image["image_name"]}_rois',
                               description='Image with detected spots labels. Image intensities correspond to roi labels',  # TODO: add link reference to the raw image
                               dataset_id=dataset_id,
-                              channel_list=al_conf.getlist('wavelengths'))
+                              source_image_id=spots_image_id)
 
-            # save_spots_data_table('AnalysisDate_argolight_D', names, desc, data)
-            #
-            # save_spots_data_key_values(key_values)
-            #
-            # save_spots_point_rois(names, data, nb_channels=len(al_conf.getlist('wavelengths')))
+            save_data_table('AnalysisDate_argolight_D', names, desc, data, spots_image_id)
+
+            save_data_key_values(key_values, spots_image_id)
+
+            save_spots_point_rois(names, data, spots_image_id)  # nb_channels=len(al_conf.getlist('wavelengths'))
 
         if al_conf.getboolean('do_vertical_res'):
             logger.info(f'Analyzing vertical resolution...')
-            argolight.analyze_resolution(vertical_res_image['image_data'],
-                                         vertical_res_image['pixel_size'],
-                                         vertical_res_image['pixel_units'],
-                                         1)
+            profiles, key_values = argolight.analyze_resolution(image=vertical_res_image['image_data'],
+                                                                pixel_size=vertical_res_image['pixel_size'],
+                                                                pixel_units=vertical_res_image['pixel_units'],
+                                                                axis=1,
+                                                                measured_band=al_conf.getfloat('res_measurement_band')
+                                                                )
+
+            save_data_key_values(key_values=key_values,
+                                 image_id=horizontal_stripes_image_id)
+
+            save_line_rois(data=key_values,
+                           image_id=horizontal_stripes_image_id)
+
+            np.save('data/vertical_res_profile', profiles)
 
         if al_conf.getboolean('do_horizontal_res'):
             logger.info(f'Analyzing horizontal resolution...')
-            argolight.analyze_resolution(horizontal_res_image['image_data'],
-                                         horizontal_res_image['pixel_size'],
-                                         horizontal_res_image['pixel_units'],
-                                         0)
+            profiles, key_values = argolight.analyze_resolution(image=horizontal_res_image['image_data'],
+                                                                pixel_size=horizontal_res_image['pixel_size'],
+                                                                pixel_units=horizontal_res_image['pixel_units'],
+                                                                axis=2,
+                                                                measured_band=al_conf.getfloat('res_measurement_band')
+                                                                )
+
+            save_data_key_values(key_values=key_values,
+                                 image_id=vertical_stripes_image_id)
+
+            save_line_rois(data=key_values,
+                           image_id=vertical_stripes_image_id)
+
+            np.save('data/horizontal_res_profile', profiles)
 
         logger.info('Metrics finished')
 
