@@ -146,7 +146,7 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
 # _____________________________________
 
 
-def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4):
+def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, precision=None):
     profiles, \
         z_planes, \
         peak_positions, \
@@ -159,7 +159,10 @@ def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4):
                                                prominence=.2,
                                                do_angle_refinement=False)
     # resolution in native units
-    resolution_values = [x * pixel_size[axis] for x in resolution_values]
+    if precision is not None:
+        resolution_values = [round(x * pixel_size[axis], precision) for x in resolution_values]
+    else:
+        resolution_values = [x * pixel_size[axis] for x in resolution_values]
 
     key_values = dict()
 

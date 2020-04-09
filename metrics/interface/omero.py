@@ -210,9 +210,8 @@ def create_project(connection, project_name):
 
 
 def create_dataset(connection: gw.BlitzGateway, dataset_name, dataset_description=None, parent_project=None):
-    gw.DatasetWrapper(conn=connection)
-    new_dataset = gw.DatasetWrapper(conn=connection,
-                                    )
+    # gw.DatasetWrapper(conn=connection)
+    new_dataset = gw.DatasetWrapper(conn=connection)
     # new_dataset = model.DatasetI()
     new_dataset.setName(rtypes.rstring(dataset_name))
     if dataset_description:
