@@ -175,21 +175,29 @@ def save_line_rois(conn, data, image):
         omero.create_roi(connection=conn, image=image, shapes=shapes)
 
 
-def save_labels_image(conn, labels_image, image_name, description, dataset, source_image_id):
+def save_labels_image(conn, labels_image, image_name, description, dataset, source_image_id, metrics_tag_id=None):
 
     zct_list = list(product(range(labels_image.shape[0]),
                             range(labels_image.shape[1]),
                             range(labels_image.shape[2])))
     zct_generator = (labels_image[z, c, t, :, :] for z, c, t in zct_list)
 
-    conn.createImageFromNumpySeq(zctPlanes=zct_generator,
-                                 imageName=image_name,
-                                 sizeZ=labels_image.shape[0],
-                                 sizeC=labels_image.shape[1],
-                                 sizeT=labels_image.shape[2],
-                                 description=description,
-                                 dataset=dataset,
-                                 sourceImageId=source_image_id)
+    new_image = conn.createImageFromNumpySeq(zctPlanes=zct_generator,
+                                             imageName=image_name,
+                                             sizeZ=labels_image.shape[0],
+                                             sizeC=labels_image.shape[1],
+                                             sizeT=labels_image.shape[2],
+                                             description=description,
+                                             dataset=dataset,
+                                             sourceImageId=source_image_id)
+
+    if metrics_tag_id is not None:
+        tag = conn.getObject('Annotation', metrics_tag_id)
+        if tag is None:
+            logger.warning('Metrics tag is not found. New images will not be tagged. Verify metrics tag existence and id.')
+        else:
+            new_image.linkAnnotation(tag)
+
 
 def get_tagged_images_in_dataset(dataset, tag_name):
     images = list()
@@ -237,7 +245,8 @@ def analyze_dataset(connection, dataset, config):
                                   description='Image with detected spots labels. Image intensities correspond to roi labels',
                                   # TODO: add link reference to the raw image
                                   dataset=dataset,
-                                  source_image_id=image.getId())
+                                  source_image_id=image.getId(),
+                                  metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
                 save_data_table(conn=connection,
                                 table_name='AnalysisDate_argolight_D',
@@ -396,6 +405,6 @@ def run_script():
 
 
 if __name__ == '__main__':
-    # run_script()
-    run_script_local()
+    run_script()
+    # run_script_local()
 
