@@ -61,7 +61,8 @@ def clean_dataset(connection, dataset_id, metrics_tag_id):
     for image in dataset.listChildren():
         rois = roi_service.findByImage(image.getId(), None)
         rois_ids = [r.getId().getValue() for r in rois.rois]
-        connection.deleteObjects('Roi', rois_ids, wait=True)
+        if len(rois_ids) > 1:
+            connection.deleteObjects('Roi', rois_ids, wait=True)
 
 def run_script_local():
     from credentials import USER, PASSWORD, GROUP, PORT, HOST

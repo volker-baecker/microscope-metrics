@@ -71,7 +71,7 @@ ch.setFormatter(formatter)
 
 # add the handlers to the logger
 # logger.addHandler(fh)
-logger.addHandler(ch)
+# logger.addHandler(ch)
 
 
 def get_omero_data(image):
@@ -209,7 +209,18 @@ def get_tagged_images_in_dataset(dataset, tag_name):
     return images
 
 
-def analyze_dataset(connection, dataset, config):
+def analyze_dataset(connection, script_params, dataset):
+
+    # Get the project / microscope
+    config = MetricsConfig()
+    microscope_prj = dataset.getParent()  # We assume one project per dataset
+
+    for ann in microscope_prj.listAnnotations():
+        if type(ann) == gateway.FileAnnotationWrapper:
+            if ann.getFileName() == script_params['Configuration file name']:
+                config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large config files
+                break
+
     if config.has_section('EXCITATION_POWER'):
         ep_conf = config['EXCITATION_POWER']
         if ep_conf['do_laser_power_measurement']:
@@ -344,6 +355,8 @@ def run_script_local():
 
 def run_script():
 
+    data_types = [rstring('Dataset')]
+
     client = scripts.client(
         'Run_Metrics.py',
         """This is the main script of omero.metrics. It will run the analysis on the selected 
@@ -351,11 +364,20 @@ def run_script():
         http://www.mri.cnrs.fr\n
         Copyright: Write here some copyright info""",
 
-        scripts.Long(
-            'Dataset ID', optional=False, grouping='1',
-            description='ID of the dataset to be analyzed'
-        ),
+        scripts.String(
+            "Data_Type", optional=False, grouping="1",
+            description="The data you want to work with.", values=[rstring('Dataset')],
+            default="Dataset"),
 
+        scripts.List(
+            "IDs", optional=False, grouping="1",
+            description="List of Dataset IDs").ofType(rlong(0)),
+
+        # scripts.Long(
+        #     'Dataset ID', optional=False, grouping='1',
+        #     description='ID of the dataset to be analyzed'
+        # ),
+        #
         scripts.String(
             'Configuration file name', optional=False, grouping='1', default='monthly_config.ini',
             description='Add here any eventuality that you want to add to the analysis'
@@ -367,6 +389,8 @@ def run_script():
         ),
     )
 
+    # TODO: Verify user is part of metrics group. If not, do not run the script
+
     try:
         script_params = {}
         for key in client.getInputKeys():
@@ -376,29 +400,14 @@ def run_script():
         logger.info(f'Metrics started using parameters: \n{script_params}')
 
         conn = gateway.BlitzGateway(client_obj=client)
-        logger.info(f'Connection successful: {conn.isConnected()}')
+        logger.info(f'Connection success: {conn.isConnected()}')
 
-        dataset = conn.getObject('Dataset', script_params['Dataset ID'])
+        datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
-        # Getting the configuration file associated with the microscope
-        config = MetricsConfig()
-        dataset_parents = dataset.listParents()
-        if len(dataset_parents) != 1:
-            logger.error('This dataset is either associated to more than one or no microscope projects')
-            raise Exception()
-        else:
-            microscope_prj = dataset_parents[0]
-
-        prj_annotations = microscope_prj.listFileAnnotations()
-
-        for ann in prj_annotations:
-            if ann.getFileName() == script_params['Configuration file name']:
-                config.read_string(anns[0].getFileInChunks().__next__().decode())
-                break
-
-        analyze_dataset(connection=conn,
-                        dataset=dataset,
-                        config=config)
+        for dataset in datasets:
+            analyze_dataset(connection=conn,
+                            script_params=script_params,
+                            dataset=dataset)
 
     finally:
         client.closeSession()
