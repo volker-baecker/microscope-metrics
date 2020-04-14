@@ -209,17 +209,18 @@ def get_tagged_images_in_dataset(dataset, tag_name):
     return images
 
 
-def analyze_dataset(connection, script_params, dataset):
+def analyze_dataset(connection, script_params, dataset, config=None):
 
-    # Get the project / microscope
-    config = MetricsConfig()
-    microscope_prj = dataset.getParent()  # We assume one project per dataset
+    if config is None:  # TODO: We might remove this line in the final script. Config is provided for debugging
+        # Get the project / microscope
+        config = MetricsConfig()
+        microscope_prj = dataset.getParent()  # We assume one project per dataset
 
-    for ann in microscope_prj.listAnnotations():
-        if type(ann) == gateway.FileAnnotationWrapper:
-            if ann.getFileName() == script_params['Configuration file name']:
-                config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large config files
-                break
+        for ann in microscope_prj.listAnnotations():
+            if type(ann) == gateway.FileAnnotationWrapper:
+                if ann.getFileName() == script_params['Configuration file name']:
+                    config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large config files
+                    break
 
     if config.has_section('EXCITATION_POWER'):
         ep_conf = config['EXCITATION_POWER']
@@ -328,8 +329,7 @@ def run_script_local():
 
     script_params = {'Dataset ID': 1,
                      'Configuration file name': 'monthly_config.ini',
-                     'Comment': 'This is a test comment'
-                    }
+                     'Comment': 'This is a test comment'}
 
     try:
         conn.connect()
@@ -345,6 +345,7 @@ def run_script_local():
         config.read(script_params['Configuration file name'])
 
         analyze_dataset(connection=conn,
+                        script_params=script_params,
                         dataset=dataset,
                         config=config)
 
@@ -355,14 +356,12 @@ def run_script_local():
 
 def run_script():
 
-    data_types = [rstring('Dataset')]
-
     client = scripts.client(
         'Run_Metrics.py',
         """This is the main script of omero.metrics. It will run the analysis on the selected 
         dataset. For more information check \n
         http://www.mri.cnrs.fr\n
-        Copyright: Write here some copyright info""",
+        Copyright: Write here some copyright info""",  # TODO: copyright info
 
         scripts.String(
             "Data_Type", optional=False, grouping="1",
@@ -373,11 +372,6 @@ def run_script():
             "IDs", optional=False, grouping="1",
             description="List of Dataset IDs").ofType(rlong(0)),
 
-        # scripts.Long(
-        #     'Dataset ID', optional=False, grouping='1',
-        #     description='ID of the dataset to be analyzed'
-        # ),
-        #
         scripts.String(
             'Configuration file name', optional=False, grouping='1', default='monthly_config.ini',
             description='Add here any eventuality that you want to add to the analysis'
@@ -389,8 +383,6 @@ def run_script():
         ),
     )
 
-    # TODO: Verify user is part of metrics group. If not, do not run the script
-
     try:
         script_params = {}
         for key in client.getInputKeys():
@@ -400,11 +392,17 @@ def run_script():
         logger.info(f'Metrics started using parameters: \n{script_params}')
 
         conn = gateway.BlitzGateway(client_obj=client)
+
+        # Verify user is part of metrics group by checking current group. If not, abort the script
+        if conn.getGroupFromContext().getName() != 'metrics':
+            raise PermissionError('You are not authorized to run this script in the current context.')
+
         logger.info(f'Connection success: {conn.isConnected()}')
 
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
         for dataset in datasets:
+            logger.info(f'analyzing data from Dataset: {dataset.getId()}')
             analyze_dataset(connection=conn,
                             script_params=script_params,
                             dataset=dataset)
@@ -414,6 +412,6 @@ def run_script():
 
 
 if __name__ == '__main__':
-    run_script()
-    # run_script_local()
+    # run_script()
+    run_script_local()
 

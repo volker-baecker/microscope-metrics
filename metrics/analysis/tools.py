@@ -18,12 +18,12 @@ import logging
 module_logger = logging.getLogger('metrics.analysis.tools')
 
 
-def _segment_channel(channel, min_distance, sigma, method, low_corr_factor, high_corr_factor):
+def _segment_channel(channel, min_distance, method, threshold=None, sigma=None, low_corr_factor=1, high_corr_factor=1):
     """Segment a channel (3D numpy array)
     """
-    threshold = threshold_otsu(channel)
+    if threshold is None:
+        threshold = threshold_otsu(channel)
 
-    # TODO: Threshold be a sigma passed here
     if sigma is not None:
         channel = gaussian(image=channel,
                            multichannel=False,
@@ -63,7 +63,7 @@ def segment_image(image,
                   low_corr_factors=None,
                   high_corr_factors=None):
     """Segment an image and return a labels object.
-    Image must be provided as zctxy numpu array
+    Image must be provided as zctxy numpy array
     """
     module_logger.info('Image being segmented...')
 
@@ -138,16 +138,9 @@ def compute_spots_properties(image, labels, remove_center_cross=True, pixel_size
 
 def compute_distances_matrix(positions, sigma, pixel_size=None):
     """Calculates Mutual Closest Neighbour distances between all channels and returns the values as
-    a list of tuples where the first element is a tuple with the channel combination (ch_A, ch_B) and the second is
-    a list of pairwise measurements where, for every spot s in ch_A:
-    - Positions of s (s_x, s_y, s_z)
-    - Weighted euclidean distance dst to the nearest spot in ch_B, t
-    - Index t_index of the nearest spot in ch_B
-    Like so:
-    [((ch_A, ch_B), [[(s_x, s_y, s_z), dst, t_index],...]),...]
     """
     module_logger.info('Computing distances between spots')
-    # TODO: Correct documentation
+
     # Container for results
     distances = list()
 
@@ -156,11 +149,6 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
 
     channel_permutations = list(permutations(range(len(positions)), 2))
 
-    # Create a space to hold the distances. For every channel permutation (a, b) we want to store:
-    # Coordinates of a
-    # Distance to the closest spot in b
-    # Index of the nearest spot in b
-
     if not pixel_size:
         pixel_size = np.array((1, 1, 1))
         module_logger.warning('No pixel size specified. Using the unit')
@@ -168,19 +156,22 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
         pixel_size = np.array(pixel_size)
 
     for a, b in channel_permutations:
-        # TODO: Try this
-        # TODO: Make explicit arguments of cdist
         distances_matrix = cdist(positions[a], positions[b], w=pixel_size)
 
         pairwise_distances = {'channels': (a, b),
                               'coord_of_A': list(),
+                              'coord_of_B': list(),
+                              'dist_zxy': list(),
                               'dist_3d': list(),
                               'labels_of_A': list(),
                               'labels_of_B': list(),
                               }
-        for i, (p, d) in enumerate(zip(positions[a], distances_matrix)):
+        for i, (pos_A, d) in enumerate(zip(positions[a], distances_matrix)):
             if d.min() < sigma:
-                pairwise_distances['coord_of_A'].append(tuple(p))
+                pairwise_distances['coord_of_A'].append(tuple(pos_A))
+                pairwise_distances['coord_of_B'].append(tuple(positions[b][d.argmin()]))
+                pairwise_distances['dist_zxy'].append(tuple(np.subtract(pairwise_distances['coord_of_A'][-1],
+                                                                        pairwise_distances['coord_of_B'][-1])))
                 pairwise_distances['dist_3d'].append(d.min())
                 pairwise_distances['labels_of_A'].append(i)
                 pairwise_distances['labels_of_B'].append(d.argmin().item())

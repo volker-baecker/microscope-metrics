@@ -125,6 +125,15 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
         key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
             median(table_data[-1][-1])
 
+        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_ZDistance')
+        table_col_desc.append(
+            'Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
+        table_data.append([[x[0].item() for x in chs_dist['dist_zxy']]])
+
+        key_values[f'Median_Z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+            median(table_data[-1][-1])
+
+
     key_values['Distance_units'] = pixel_size_units[0]
 
     # plot.plot_homogeneity_map(raw_stack=image,
