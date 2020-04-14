@@ -38,7 +38,6 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
 
     # Return some key-value pairs
     key_values = dict()
-    # TODO: Median z-distance
 
     # Return a table with detailed data
     table_col_names = list()
@@ -211,7 +210,7 @@ def _fit(profile, peaks_guess, amp=4, lower_amp=2, upper_amp=5, center_tolerance
     lower_bounds = list()
     upper_bounds = list()
     for p in peaks_guess:
-        guess.append(p)  # pead center
+        guess.append(p)  # peak center
         guess.append(amp)
         lower_bounds.append(p - center_tolerance)
         lower_bounds.append(lower_amp)
@@ -233,21 +232,13 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     # find the most contrasted z-slice
     z_stdev = np.std(channel, axis=(1, 2))
     z_focus = np.argmax(z_stdev)
-    focus_slice = channel[z_focus]  # TODO: verify 2 dimensions
+    focus_slice = channel[z_focus]
 
     # TODO: verify angle and correct
     if do_angle_refinement:
         # Set a precision of 0.1 degree.
         tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 1800)
         h, theta, d = hough_line(focus_slice, theta=tested_angles)
-
-    # project parallel to the axis of interest
-    # parallel_prj = np.mean(focus_slice, axis=axis)
-
-    # get the center and width of the lines pattern
-    # TODO: properly get the best of the lines
-
-    # TODO: we have to do some fitting or interpolation to get more precision then the single pixel
 
     # Cut a band of that found peak
     # Best we can do now is just to cut a band in the center
@@ -275,14 +266,13 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     ray_filtered_peak_heights = []
 
     for peak, height, prom in zip(peak_positions, properties['peak_heights'], properties['prominences']):
-        if (prom / height) > prominence:
+        if (prom / height) > prominence:  # This is calculating the prominence in relation to the local intensity
             ray_filtered_peak_pos.append(peak)
             ray_filtered_peak_heights.append(height)
 
     peak_positions = ray_filtered_peak_pos
     peak_heights = ray_filtered_peak_heights
 
-    # TODO: We have to filter by relative prominences.
     if do_fitting:
         peak_positions, peak_heights = _fit(normalized_profile, peak_positions)
 
