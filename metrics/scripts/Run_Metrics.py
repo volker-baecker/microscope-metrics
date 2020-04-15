@@ -40,6 +40,7 @@ from metrics.utils.utils import MetricsConfig
 
 # import logging
 import logging
+from datetime import datetime
 
 # import Argolight analysis tools
 from metrics.samples import argolight
@@ -111,8 +112,9 @@ def save_data_key_values(conn, key_values, omero_obj):
 
 
 def create_laser_power_keys(conn, laser_lines, units, dataset):
-    # TODO: remove this function
+    # TODO: Move this function somewhere else
     key_values = {str(k): '' for k in laser_lines}
+    key_values['date'] = datetime.now().strftime("%Y-%m-%d")
     key_values['power_units'] = units
 
     map_ann = omero.create_annotation_map(connection=conn,
@@ -210,6 +212,10 @@ def get_tagged_images_in_dataset(dataset, tag_name):
 
 
 def analyze_dataset(connection, script_params, dataset, config=None):
+
+    logger.info(f'Analyzing data from Dataset: {dataset.getId()}')
+    logger.info(f'Date and time: {datetime.now()}')
+    # TODO: Add time to key values
 
     if config is None:  # TODO: We might remove this line in the final script. Config is provided for debugging
         # Get the project / microscope
@@ -402,7 +408,6 @@ def run_script():
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
         for dataset in datasets:
-            logger.info(f'analyzing data from Dataset: {dataset.getId()}')
             analyze_dataset(connection=conn,
                             script_params=script_params,
                             dataset=dataset)

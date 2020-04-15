@@ -201,32 +201,32 @@ def create_image_from_ndarray(connection: gw.BlitzGateway, data, image_name, ima
 
 ############### Creating projects and datasets #####################
 
-def create_project(connection, project_name):
-    new_project = gw.ProjectWrapper(connection)
-    new_project.setName(rtypes.rstring(project_name))
+def create_project(connection, name, description=None):
+    new_project = gw.ProjectWrapper(connection, model.ProjectI())
+    new_project.setName(name)
+    if description:
+        new_project.setDescription(description)
     new_project.save()
 
     return new_project
 
 
-def create_dataset(connection: gw.BlitzGateway, dataset_name, dataset_description=None, parent_project=None):
-    # gw.DatasetWrapper(conn=connection)
-    new_dataset = gw.DatasetWrapper(conn=connection)
-    # new_dataset = model.DatasetI()
-    new_dataset.setName(rtypes.rstring(dataset_name))
-    if dataset_description:
-        new_dataset.setDescription(rtypes.rstring(dataset_description))
-    new_dataset = connection.getUpdateService().saveAndReturnObject(new_dataset)
+def create_dataset(connection: gw.BlitzGateway, name, description=None, parent_project=None):
+    new_dataset = gw.DatasetWrapper(connection, model.DatasetI())
+    new_dataset.setName(name)
+    if description:
+        new_dataset.setDescription(description)
+    new_dataset.save()
     if parent_project:
         link = model.ProjectDatasetLinkI()
-        link.setParent(parent_project._obj)
-        link.setChild(new_dataset)
+        link.setParent(model.ProjectI(parent_project.getId(), False))  # linking to a loaded project might raise exception
+        link.setChild(model.DatasetI(new_dataset.getId(), False))
         connection.getUpdateService().saveObject(link)
 
     return new_dataset
 
 
-# Deleting data
+############### Deleting projects and datasets #####################
 
 def _delete_object(conn, object_type, objects, delete_annotations, delete_children, wait, callback=None):
     if not isinstance(objects, list) and not isinstance(object, int):
