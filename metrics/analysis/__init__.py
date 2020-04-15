@@ -167,9 +167,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                 spots_image = get_omero_data(image=image)
                 module_logger.info(f'Analyzing spots image...')
                 labels, \
-                    names, \
-                    desc, \
-                    data, \
+                    tables, \
                     key_values = argolight.analyze_spots(image=spots_image['image_data'],
                                                          pixel_size=spots_image['pixel_size'],
                                                          pixel_size_units=spots_image['pixel_units'],
@@ -185,20 +183,21 @@ def analyze_dataset(connection, script_params, dataset, config):
                                   source_image_id=image.getId(),
                                   metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
-                save_data_table(conn=connection,
-                                table_name='AnalysisDate_argolight_D',
-                                col_names=names,
-                                col_descriptions=desc,
-                                col_data=data,
-                                omero_obj=image)
+                for k in tables.keys():
+                    save_data_table(conn=connection,
+                                    table_name=f'AnalysisDate_argolight_D_{k}',
+                                    col_names=tables[k]['table_col_names'],
+                                    col_descriptions=tables[k]['table_col_desc'],
+                                    col_data=tables[k]['table_data'],
+                                    omero_obj=image)
 
                 save_data_key_values(conn=connection,
                                      key_values=key_values,
                                      omero_obj=image)
 
                 save_spots_point_rois(conn=connection,
-                                      names=names,
-                                      data=data,
+                                      names=tables['properties']['table_col_names'],
+                                      data=tables['properties']['table_data'],
                                       image=image)  # nb_channels=len(al_conf.getlist('wavelengths'))
 
         if al_conf.getboolean('do_vertical_res'):

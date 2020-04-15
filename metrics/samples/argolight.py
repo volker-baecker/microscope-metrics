@@ -1,4 +1,3 @@
-
 from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from metrics.utils.utils import multi_airy_fun
 # from metrics.plot import plot
@@ -11,11 +10,11 @@ from statistics import median
 
 # Creating logging services
 import logging
+
 module_logger = logging.getLogger('metrics.samples.argolight')
 
 
 # ___________________________________________
-#
 # ANALYZING 'SPOTS' MATRIX. PATTERNS XXX
 # Computing chromatic shifts, homogeneity,...
 # ___________________________________________
@@ -39,99 +38,115 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     # Return some key-value pairs
     key_values = dict()
 
+    # Return some tables
+    tables = {'properties':
+                  {'table_col_names': list(),
+                   'table_col_desc': list(),
+                   'table_data': list()},
+
+              'distances':
+                  {'table_col_names': list(),
+                   'table_col_desc': list(),
+                   'table_data': list()},
+              }
+
     # Return a table with detailed data
-    table_col_names = list()
-    table_col_desc = list()
-    table_data = list()
+    # table_col_names = list()
+    # table_col_desc = list()
+    # table_data = list()
 
     # Populating the data
-    table_col_names.append('roiVolumeUnit')
-    table_col_desc.append('Volume units for the ROIs.')
-    table_data.append(['VOXEL'])
+    tables['properties']['table_col_names'].append('roiVolumeUnit')
+    tables['properties']['table_col_desc'].append('Volume units for the ROIs.')
+    tables['properties']['table_data'].append(['VOXEL'])
 
-    table_col_names.append('roiWeightedCentroidUnits')
-    table_col_desc.append('Weighted Centroid coordinates units for the ROIs.')
-    table_data.append(['PIXEL'])
+    tables['properties']['table_col_names'].append('roiWeightedCentroidUnits')
+    tables['properties']['table_col_desc'].append('Weighted Centroid coordinates units for the ROIs.')
+    tables['properties']['table_data'].append(['PIXEL'])
 
-    table_col_names.append('Distance3dUnits')
-    table_col_desc.append('Weighted Centroid 3d distances units for the ROIs.')
-    table_data.append([pixel_size_units[0]])
+    tables['distances']['table_col_names'].append('Distance3dUnits')
+    tables['distances']['table_col_desc'].append('Weighted Centroid 3d distances units for the ROIs.')
+    tables['distances']['table_data'].append([pixel_size_units[0]])
 
     for c, ch_spot_prop in enumerate(spots_properties):
         key_values[f'Nr_of_spots_ch{c:02d}'] = len(ch_spot_prop)
 
         key_values[f'Max_Intensity_ch{c:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
         key_values[f'Max_Intensity_Roi_ch{c:02d}'] = \
-            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{c:02d}'])]['label']
+            ch_spot_prop[
+                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{c:02d}'])][
+                'label']
 
         key_values[f'Min_Intensity_ch{c:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
         key_values[f'Min_Intensity_Roi_ch{c:02d}'] = \
-            ch_spot_prop[[x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{c:02d}'])]['label']
+            ch_spot_prop[
+                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{c:02d}'])][
+                'label']
 
-        key_values[f'Min-Max_intensity_ratio_ch{c:02d}'] = key_values[f'Min_Intensity_ch{c:02d}'] / key_values[f'Max_Intensity_ch{c:02d}']
+        key_values[f'Min-Max_intensity_ratio_ch{c:02d}'] = key_values[f'Min_Intensity_ch{c:02d}'] / key_values[
+            f'Max_Intensity_ch{c:02d}']
 
     for c, ch_spot_prop in enumerate(spots_properties):
-        table_col_names.append(f'ch{c:02d}_MaskLabels')
-        table_col_desc.append('Labels of the mask ROIs.')
-        table_data.append([[x['label'] for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_MaskLabels')
+        tables['properties']['table_col_desc'].append('Labels of the mask ROIs.')
+        tables['properties']['table_data'].append([[x['label'] for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_Volume')
-        table_col_desc.append('Volume of the ROIs.')
-        table_data.append([[x['area'].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_Volume')
+        tables['properties']['table_col_desc'].append('Volume of the ROIs.')
+        tables['properties']['table_data'].append([[x['area'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_MaxIntensity')
-        table_col_desc.append('Maximum intensity of the ROIs.')
-        table_data.append([[x['max_intensity'].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_MaxIntensity')
+        tables['properties']['table_col_desc'].append('Maximum intensity of the ROIs.')
+        tables['properties']['table_data'].append([[x['max_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_MinIntensity')
-        table_col_desc.append('Minimum intensity of the ROIs.')
-        table_data.append([[x['min_intensity'].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_MinIntensity')
+        tables['properties']['table_col_desc'].append('Minimum intensity of the ROIs.')
+        tables['properties']['table_data'].append([[x['min_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_MeanIntensity')
-        table_col_desc.append('Mean intensity of the ROIs.')
-        table_data.append([[x['mean_intensity'].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_MeanIntensity')
+        tables['properties']['table_col_desc'].append('Mean intensity of the ROIs.')
+        tables['properties']['table_data'].append([[x['mean_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_IntegratedIntensity')
-        table_col_desc.append('Integrated intensity of the ROIs.')
-        table_data.append([[x['integrated_intensity'].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_IntegratedIntensity')
+        tables['properties']['table_col_desc'].append('Integrated intensity of the ROIs.')
+        tables['properties']['table_data'].append([[x['integrated_intensity'].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_XWeightedCentroid')
-        table_col_desc.append('Weighted Centroid X coordinates of the ROIs.')
-        table_data.append([[x['weighted_centroid'][2].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_XWeightedCentroid')
+        tables['properties']['table_col_desc'].append('Weighted Centroid X coordinates of the ROIs.')
+        tables['properties']['table_data'].append([[x['weighted_centroid'][2].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_YWeightedCentroid')
-        table_col_desc.append('Weighted Centroid Y coordinates of the ROIs.')
-        table_data.append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_YWeightedCentroid')
+        tables['properties']['table_col_desc'].append('Weighted Centroid Y coordinates of the ROIs.')
+        tables['properties']['table_data'].append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
 
-        table_col_names.append(f'ch{c:02d}_ZWeightedCentroid')
-        table_col_desc.append('Weighted Centroid Z coordinates of the ROIs.')
-        table_data.append([[x['weighted_centroid'][0].item() for x in ch_spot_prop]])
+        tables['properties']['table_col_names'].append(f'ch{c:02d}_ZWeightedCentroid')
+        tables['properties']['table_col_desc'].append('Weighted Centroid Z coordinates of the ROIs.')
+        tables['properties']['table_data'].append([[x['weighted_centroid'][0].item() for x in ch_spot_prop]])
 
     for c, chs_dist in enumerate(spots_distances):
-        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels')
-        table_col_desc.append('Labels of the ROIs in channel A.')
-        table_data.append([chs_dist['labels_of_A']])
+        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels')
+        tables['distances']['table_col_desc'].append('Labels of the ROIs in channel A.')
+        tables['distances']['table_data'].append([chs_dist['labels_of_A']])
 
-        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels')
-        table_col_desc.append('Labels of the ROIs in channel B.')
-        table_data.append([chs_dist['labels_of_B']])
+        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels')
+        tables['distances']['table_col_desc'].append('Labels of the ROIs in channel B.')
+        tables['distances']['table_data'].append([chs_dist['labels_of_B']])
 
-        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance')
-        table_col_desc.append(
+        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance')
+        tables['distances']['table_col_desc'].append(
             'Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
-        table_data.append([[x.item() for x in chs_dist['dist_3d']]])
+        tables['distances']['table_data'].append([[x.item() for x in chs_dist['dist_3d']]])
 
         key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
-            median(table_data[-1][-1])
+            median(tables['distances']['table_data'][-1][-1])
 
-        table_col_names.append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_ZDistance')
-        table_col_desc.append(
+        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_ZDistance')
+        tables['distances']['table_col_desc'].append(
             'Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
-        table_data.append([[x[0].item() for x in chs_dist['dist_zxy']]])
+        tables['distances']['table_data'].append([[x[0].item() for x in chs_dist['dist_zxy']]])
 
         key_values[f'Median_Z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
-            median(table_data[-1][-1])
-
+            median(tables['distances']['table_data'][-1][-1])
 
     key_values['Distance_units'] = pixel_size_units[0]
 
@@ -144,7 +159,7 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     #                          x_dim=image.shape[-2],
     #                          y_dim=image.shape[-1])
 
-    return labels, table_col_names, table_col_desc, table_data, key_values
+    return labels, tables, key_values
 
 
 # _____________________________________
@@ -156,16 +171,16 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
 
 def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, precision=None):
     profiles, \
-        z_planes, \
-        peak_positions, \
-        peak_heights, \
-        resolution_values, \
-        resolution_indexes, \
-        resolution_method = compute_resolution(image=image,
-                                               axis=axis,
-                                               measured_band=measured_band,
-                                               prominence=.2,
-                                               do_angle_refinement=False)
+    z_planes, \
+    peak_positions, \
+    peak_heights, \
+    resolution_values, \
+    resolution_indexes, \
+    resolution_method = compute_resolution(image=image,
+                                           axis=axis,
+                                           measured_band=measured_band,
+                                           prominence=.2,
+                                           do_angle_refinement=False)
     # resolution in native units
     if precision is not None:
         resolution_values = [round(x * pixel_size[axis], precision) for x in resolution_values]
@@ -182,8 +197,10 @@ def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, p
     key_values['measured_band'] = measured_band
 
     for c, indexes in enumerate(resolution_indexes):
-        key_values[f'ch{c:02d}_peak_positions'] = [(peak_positions[c][ind].item(), peak_positions[c][ind + 1].item()) for ind in indexes]
-        key_values[f'ch{c:02d}_peak_heights'] = [(peak_heights[c][ind].item(), peak_heights[c][ind + 1].item()) for ind in indexes]
+        key_values[f'ch{c:02d}_peak_positions'] = [(peak_positions[c][ind].item(), peak_positions[c][ind + 1].item())
+                                                   for ind in indexes]
+        key_values[f'ch{c:02d}_peak_heights'] = [(peak_heights[c][ind].item(), peak_heights[c][ind + 1].item()) for ind
+                                                 in indexes]
         key_values[f'ch{c:02d}_focus'] = z_planes[c].item()
 
     # plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
@@ -232,7 +249,8 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     axis_len = focus_slice.shape[-axis]
     weight_profile = np.zeros(axis_len)
     # Calculates a band of relative width 'image_fraction' to integrate the profile
-    weight_profile[int((axis_len / 2) - (axis_len * measured_band / 2)):int((axis_len / 2) + (axis_len * measured_band / 2))] = 1
+    weight_profile[
+    int((axis_len / 2) - (axis_len * measured_band / 2)):int((axis_len / 2) + (axis_len * measured_band / 2))] = 1
     profile = np.average(focus_slice,
                          axis=-axis,
                          weights=weight_profile)
