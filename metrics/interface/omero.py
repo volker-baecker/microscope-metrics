@@ -276,7 +276,9 @@ def delete_project(conn, projects, delete_annotations=False, delete_children=Fal
 
 ############### Getting information on projects and datasets ###############
 
-def get_all_projects(conn, opts={'order_by':'loser(obj.name)'}):
+def get_all_projects(conn, opts=None):
+    if opts is None:
+        opts = {'order_by': 'loser(obj.name)'}
     projects = conn.getObjects("Project", opts=opts)
 
     return projects
@@ -303,6 +305,16 @@ def get_orphan_datasets(conn):
 def get_orphan_images(conn):
     images = conn.getObjects("Image", opts={'orphaned': True})
 
+    return images
+
+
+def get_tagged_images_in_dataset(dataset, tag_name):
+    images = list()
+    for image in dataset.listChildren():
+        for ann in image.listAnnotations():
+            if type(ann) == gw.TagAnnotationWrapper:
+                if ann.getValue() == tag_name:
+                    images.append(image)
     return images
 
 

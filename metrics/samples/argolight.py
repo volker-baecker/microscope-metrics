@@ -186,20 +186,6 @@ def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, p
         key_values[f'ch{c:02d}_peak_heights'] = [(peak_heights[c][ind].item(), peak_heights[c][ind + 1].item()) for ind in indexes]
         key_values[f'ch{c:02d}_focus'] = z_planes[c].item()
 
-    # We want to save:
-    # - the profiles as a 1 pixels image
-    # A table per image containing the following columns
-    # - source Image
-    # - the profiles Image
-    # - Per channel:
-    #   - Per method:
-    #     - Per line:
-    #       - RoiColumn(name='chXX_method_Line_X', description='Measured line with method {method}.', values)
-    #     - FloatColumn(name='chXX_method_resolution' description='Measured resolution value using method {method}.', values)
-    #     - FloatColumn(name='chXX_method_resolution_angle' description='Angle at which resolution was measured using method {method}.', values)
-    # - StringColumn(name='resolutionUnits', description='Measured resolution units.', size=(max size), values)
-    # - StringColumn(name='resolutionAngleUnits', description='Measured resolution angle units.', size=(max size), values)
-
     # plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
 
     return profiles, key_values
