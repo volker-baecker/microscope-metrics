@@ -115,7 +115,7 @@ def save_data_key_values(key_values, image_id):
     try:
         map_ann = omero.create_annotation_map(connection=conn,
                                               annotation=key_values,
-                                              client_editable=True)
+                                              namespace=True)
         image = omero.get_image(conn, image_id)
         omero.link_annotation(image, map_ann)
 
@@ -136,7 +136,7 @@ def create_laser_power_keys(laser_lines, units, dataset_id):
     try:
         map_ann = omero.create_annotation_map(connection=conn,
                                               annotation=key_values,
-                                              client_editable=True)
+                                              namespace=True)
         dataset = omero.get_dataset(conn, dataset_id)
         omero.link_annotation(dataset, map_ann)
 

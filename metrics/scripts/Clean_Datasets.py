@@ -43,7 +43,7 @@ logger.setLevel(logging.DEBUG)
 METRICS_TAG_ID = 132  # This has to go into some installation configuration
 
 
-def clean_dataset(connection, dataset):
+def clean_dataset(connection, dataset, namespace_like=None):
 
     # Clean Dataset annotations
     for ann in dataset.listAnnotations():

@@ -1,3 +1,4 @@
+
 from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from metrics.utils.utils import multi_airy_fun
 # from metrics.plot import plot
@@ -7,6 +8,7 @@ from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from statistics import median
+import datetime
 
 # Creating logging services
 import logging
@@ -39,34 +41,117 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     key_values = dict()
 
     # Return some tables
-    tables = {'properties':
-                  {'table_col_names': list(),
-                   'table_col_desc': list(),
-                   'table_data': list()},
+    properties = [{'name': 'roi_volume_units',
+                   'desc': 'Volume units for the ROIs.',
+                   'getter': lambda x, props: [x for n in range(len(props))],
+                   'data': list(),
+                   },
+                  {'name': 'roi_weighted_centroid_units',
+                   'desc': 'Weighted Centroid coordinates units for the ROIs.',
+                   'getter': lambda x, props: [x for n in range(len(props))],
+                   'data': list(),
+                   },
+                  {'name': 'channel',
+                   'desc': 'Channel.',
+                   'getter': lambda ch, props: [ch for x in props],
+                   'data': list(),
+                   },
+                  {'name': 'mask_labels',
+                   'desc': 'Labels of the mask ROIs.',
+                   'getter': lambda ch, props: [p['label'] for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'volume',
+                   'desc': 'Volume of the ROIs.',
+                   'getter': lambda ch, props: [p['area'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'max_intensity',
+                   'desc': 'Maximum intensity of the ROIs.',
+                   'getter': lambda ch, props: [p['max_intensity'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'min_intensity',
+                   'desc': 'Minimum intensity of the ROIs.',
+                   'getter': lambda ch, props: [p['min_intensity'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'mean_intensity',
+                   'desc': 'Mean intensity of the ROIs.',
+                   'getter': lambda ch, props: [p['mean_intensity'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'integrated_intensity',
+                   'desc': 'Integrated intensity of the ROIs.',
+                   'getter': lambda ch, props: [p['integrated_intensity'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'x_weighted_centroid',
+                   'desc': 'Weighted Centroid X coordinates of the ROIs.',
+                   'getter': lambda ch, props: [p['weighted_centroid'][2].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'y_weighted_centroid',
+                   'desc': 'Weighted Centroid Y coordinates of the ROIs.',
+                   'getter': lambda ch, props: [p['weighted_centroid'][1].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'z_weighted_centroid',
+                   'desc': 'Weighted Centroid Z coordinates of the ROIs.',
+                   'getter': lambda ch, props: [p['weighted_centroid'][0].item() for p in props],
+                   'data': list(),
+                   },
+                  ]
 
-              'distances':
-                  {'table_col_names': list(),
-                   'table_col_desc': list(),
-                   'table_data': list()},
-              }
+    distances = [{'name': 'distances_units',
+                  'desc': 'Weighted Centroid distances units.',
+                  'getter': lambda x, props: [x for n in props['dist_3d']],
+                  'data': list(),
+                  },
+                 {'name': 'channel_A',
+                  'desc': 'Channel A.',
+                  'getter': lambda props: [props['channels'][0] for p in props['dist_3d']],
+                  'data': list(),
+                  },
+                 {'name': 'channel_B',
+                  'desc': 'Channel B.',
+                  'getter': lambda props: [props['channels'][1] for p in props['dist_3d']],
+                  'data': list(),
+                  },
+                 {'name': 'ch_A_roi_labels',
+                  'desc': 'Labels of the ROIs in channel A.',
+                  'getter': lambda props: props['labels_of_A'],
+                  'data': list(),
+                  },
+                 {'name': 'ch_B_roi_labels',
+                  'desc': 'Labels of the ROIs in channel B.',
+                  'getter': lambda props: props['labels_of_B'],
+                  'data': list(),
+                  },
+                 {'name': 'distance_3d',
+                  'desc': 'Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.',
+                  'getter': lambda props: [p.item() for p in props['dist_3d']],
+                  'data': list(),
+                  },
+                 {'name': 'distance_x',
+                  'desc': 'Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.',
+                  'getter': lambda props: [p[2].item() for p in props['dist_zxy']],
+                  'data': list(),
+                  },
+                 {'name': 'distance_y',
+                  'desc': 'Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.',
+                  'getter': lambda props: [p[1].item() for p in props['dist_zxy']],
+                  'data': list(),
+                  },
+                 {'name': 'distance_z',
+                  'desc': 'Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.',
+                  'getter': lambda props: [p[0].item() for p in props['dist_zxy']],
+                  'data': list(),
+                  },
+                 ]
 
-    # Return a table with detailed data
-    # table_col_names = list()
-    # table_col_desc = list()
-    # table_data = list()
-
-    # Populating the data
-    tables['properties']['table_col_names'].append('roiVolumeUnit')
-    tables['properties']['table_col_desc'].append('Volume units for the ROIs.')
-    tables['properties']['table_data'].append(['VOXEL'])
-
-    tables['properties']['table_col_names'].append('roiWeightedCentroidUnits')
-    tables['properties']['table_col_desc'].append('Weighted Centroid coordinates units for the ROIs.')
-    tables['properties']['table_data'].append(['PIXEL'])
-
-    tables['distances']['table_col_names'].append('Distance3dUnits')
-    tables['distances']['table_col_desc'].append('Weighted Centroid 3d distances units for the ROIs.')
-    tables['distances']['table_data'].append([pixel_size_units[0]])
+    # Populate the data
+    key_values['Analysis_date_time'] = str(datetime.datetime.now())
 
     for c, ch_spot_prop in enumerate(spots_properties):
         key_values[f'Nr_of_spots_ch{c:02d}'] = len(ch_spot_prop)
@@ -86,67 +171,47 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
         key_values[f'Min-Max_intensity_ratio_ch{c:02d}'] = key_values[f'Min_Intensity_ch{c:02d}'] / key_values[
             f'Max_Intensity_ch{c:02d}']
 
-    for c, ch_spot_prop in enumerate(spots_properties):
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_MaskLabels')
-        tables['properties']['table_col_desc'].append('Labels of the mask ROIs.')
-        tables['properties']['table_data'].append([[x['label'] for x in ch_spot_prop]])
+    for ch, ch_spot_prop in enumerate(spots_properties):
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_Volume')
-        tables['properties']['table_col_desc'].append('Volume of the ROIs.')
-        tables['properties']['table_data'].append([[x['area'].item() for x in ch_spot_prop]])
+        key_values[f'Nr_of_spots_ch{ch:02d}'] = len(ch_spot_prop)
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_MaxIntensity')
-        tables['properties']['table_col_desc'].append('Maximum intensity of the ROIs.')
-        tables['properties']['table_data'].append([[x['max_intensity'].item() for x in ch_spot_prop]])
+        key_values[f'Max_Intensity_ch{ch:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
+        key_values[f'Max_Intensity_Roi_ch{ch:02d}'] = \
+            ch_spot_prop[
+                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{ch:02d}'])][
+                'label']
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_MinIntensity')
-        tables['properties']['table_col_desc'].append('Minimum intensity of the ROIs.')
-        tables['properties']['table_data'].append([[x['min_intensity'].item() for x in ch_spot_prop]])
+        key_values[f'Min_Intensity_ch{ch:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
+        key_values[f'Min_Intensity_Roi_ch{ch:02d}'] = \
+            ch_spot_prop[
+                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{ch:02d}'])][
+                'label']
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_MeanIntensity')
-        tables['properties']['table_col_desc'].append('Mean intensity of the ROIs.')
-        tables['properties']['table_data'].append([[x['mean_intensity'].item() for x in ch_spot_prop]])
+        key_values[f'Min-Max_intensity_ratio_ch{ch:02d}'] = key_values[f'Min_Intensity_ch{ch:02d}'] / key_values[
+            f'Max_Intensity_ch{ch:02d}']
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_IntegratedIntensity')
-        tables['properties']['table_col_desc'].append('Integrated intensity of the ROIs.')
-        tables['properties']['table_data'].append([[x['integrated_intensity'].item() for x in ch_spot_prop]])
+        for prop in properties:
+            if prop['name'] == 'roi_volume_units':
+                prop['data'].extend(prop['getter']('VOXEL', ch_spot_prop))
+            elif prop['name'] == 'roi_weighted_centroid_units':
+                prop['data'].extend(prop['getter']('PIXEL', ch_spot_prop))
+            else:
+                prop['data'].extend(prop['getter'](ch, ch_spot_prop))
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_XWeightedCentroid')
-        tables['properties']['table_col_desc'].append('Weighted Centroid X coordinates of the ROIs.')
-        tables['properties']['table_data'].append([[x['weighted_centroid'][2].item() for x in ch_spot_prop]])
+    for ch, chs_dist in enumerate(spots_distances):
+        for dists in distances:
+            if dists['name'] == 'distances_units':
+                dists['data'].extend(dists['getter'](pixel_size_units[0], chs_dist))
+            else:
+                dists['data'].extend(dists['getter'](chs_dist))
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_YWeightedCentroid')
-        tables['properties']['table_col_desc'].append('Weighted Centroid Y coordinates of the ROIs.')
-        tables['properties']['table_data'].append([[x['weighted_centroid'][1].item() for x in ch_spot_prop]])
+            if dists['name'] == 'distance_3d':
+                key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+                    median([d.item() for d in chs_dist['dist_3d']])
 
-        tables['properties']['table_col_names'].append(f'ch{c:02d}_ZWeightedCentroid')
-        tables['properties']['table_col_desc'].append('Weighted Centroid Z coordinates of the ROIs.')
-        tables['properties']['table_data'].append([[x['weighted_centroid'][0].item() for x in ch_spot_prop]])
-
-    for c, chs_dist in enumerate(spots_distances):
-        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chARoiLabels')
-        tables['distances']['table_col_desc'].append('Labels of the ROIs in channel A.')
-        tables['distances']['table_data'].append([chs_dist['labels_of_A']])
-
-        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_chBRoiLabels')
-        tables['distances']['table_col_desc'].append('Labels of the ROIs in channel B.')
-        tables['distances']['table_data'].append([chs_dist['labels_of_B']])
-
-        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_3dDistance')
-        tables['distances']['table_col_desc'].append(
-            'Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
-        tables['distances']['table_data'].append([[x.item() for x in chs_dist['dist_3d']]])
-
-        key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
-            median(tables['distances']['table_data'][-1][-1])
-
-        tables['distances']['table_col_names'].append(f'ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}_ZDistance')
-        tables['distances']['table_col_desc'].append(
-            'Distance in Z between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.')
-        tables['distances']['table_data'].append([[x[0].item() for x in chs_dist['dist_zxy']]])
-
-        key_values[f'Median_Z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
-            median(tables['distances']['table_data'][-1][-1])
+            if dists['name'] == 'distance_z':
+                key_values[f'Median_z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+                    median([d[0].item() for d in chs_dist['dist_zxy']])
 
     key_values['Distance_units'] = pixel_size_units[0]
 
@@ -159,7 +224,7 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     #                          x_dim=image.shape[-2],
     #                          y_dim=image.shape[-1])
 
-    return labels, tables, key_values
+    return labels, properties, distances, key_values
 
 
 # _____________________________________
@@ -171,16 +236,16 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
 
 def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, precision=None):
     profiles, \
-    z_planes, \
-    peak_positions, \
-    peak_heights, \
-    resolution_values, \
-    resolution_indexes, \
-    resolution_method = compute_resolution(image=image,
-                                           axis=axis,
-                                           measured_band=measured_band,
-                                           prominence=.2,
-                                           do_angle_refinement=False)
+        z_planes, \
+        peak_positions, \
+        peak_heights, \
+        resolution_values, \
+        resolution_indexes, \
+        resolution_method = compute_resolution(image=image,
+                                               axis=axis,
+                                               measured_band=measured_band,
+                                               prominence=.2,
+                                               do_angle_refinement=False)
     # resolution in native units
     if precision is not None:
         resolution_values = [round(x * pixel_size[axis], precision) for x in resolution_values]
@@ -188,6 +253,8 @@ def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, p
         resolution_values = [x * pixel_size[axis] for x in resolution_values]
 
     key_values = dict()
+
+    key_values['Analysis_date_time'] = str(datetime.datetime.now())
 
     for c, res in enumerate(resolution_values):
         key_values[f'ch{c:02d}_{resolution_method}_resolution'] = res.item()

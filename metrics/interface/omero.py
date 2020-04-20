@@ -346,10 +346,12 @@ def _dict_to_map(dictionary):
     return map_annotation
 
 
-def create_annotation_map(connection, annotation, client_editable=True):
+def create_annotation_map(connection, annotation, namespace=None):
     """Creates a map_annotation for OMERO. It can create a map annotation from a
     dictionary or from a list of 2 elements list.
     """
+    if namespace is None:
+        namespace = metadata.NSCLIENTMAPANNOTATION  # This makes the annotation editable in the client
     # Convert a dictionary into a map annotation
     if isinstance(annotation, dict):
         annotation = _dict_to_map(annotation)
@@ -360,9 +362,7 @@ def create_annotation_map(connection, annotation, client_editable=True):
 
     map_ann = gw.MapAnnotationWrapper(connection)
 
-    if client_editable:
-        namespace = metadata.NSCLIENTMAPANNOTATION  # This makes the annotation editable in the client
-        map_ann.setNs(namespace)
+    map_ann.setNs(namespace)
 
     map_ann.setValue(annotation)
     map_ann.save()
@@ -463,7 +463,8 @@ def create_annotation_table(connection, table_name, column_names, column_descrip
     original_file = table.getOriginalFile()
     table.close()  # when we are done, close.
     file_ann = gw.FileAnnotationWrapper(connection)
-    file_ann.setNs(namespaces.NSBULKANNOTATIONS)
+    file_ann.setNs(namespace)
+    file_ann.setDescription(table_description)
     file_ann.setFile(model.OriginalFileI(original_file.id.val, False))  # TODO: try to get this with a wrapper
     file_ann.save()
     return file_ann
@@ -476,7 +477,8 @@ def create_roi(connection, image, shapes):
 
 def _create_roi(connection, image, shapes):
     # create an ROI, link it to Image
-    roi = model.RoiI()
+    # roi = gw.RoiWrapper()
+    roi = model.RoiI()  # TODO: work with wrappers
     # use the omero.model.ImageI that underlies the 'image' wrapper
     roi.setImage(image._obj)
     for shape in shapes:
@@ -509,18 +511,20 @@ def _set_shape_properties(shape, name=None,
     shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
 
 
-def create_shape_point(x_pos, y_pos, z_pos, t_pos=0, shape_name=None):
+def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None):
     point = model.PointI()
     point.x = rtypes.rdouble(x_pos)
     point.y = rtypes.rdouble(y_pos)
     point.theZ = rtypes.rint(z_pos)
     point.theT = rtypes.rint(t_pos)
+    if c_pos is not None:
+        point.theC = rtypes.rint(c_pos)
     _set_shape_properties(point, name=shape_name)
 
     return point
 
 
-def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos,
+def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos, c_pos=None,
                       line_name=None, stroke_color=(255, 255, 255, 255), stroke_width=1):
     line = model.LineI()
     line.x1 = rtypes.rdouble(x1_pos)
@@ -529,6 +533,8 @@ def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos,
     line.y2 = rtypes.rdouble(y2_pos)
     line.theZ = rtypes.rint(z_pos)
     line.theT = rtypes.rint(t_pos)
+    if c_pos is not None:
+        line.theC = rtypes.rint(c_pos)
     _set_shape_properties(line, name=line_name,
                           stroke_color=stroke_color,
                           stroke_width=stroke_width)
