@@ -27,15 +27,18 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                            sigma=(1, 3, 3),
                            method='local_max',
                            low_corr_factors=low_corr_factors,
-                           high_corr_factors=high_corr_factors)
+                           high_corr_factors=high_corr_factors,
+                           )
 
     spots_properties, spots_positions = compute_spots_properties(image=image,
                                                                  labels=labels,
-                                                                 remove_center_cross=False)
+                                                                 remove_center_cross=False,
+                                                                 )
 
     spots_distances = compute_distances_matrix(positions=spots_positions,
                                                sigma=2.0,
-                                               pixel_size=pixel_size)
+                                               pixel_size=pixel_size,
+                                               )
 
     # Return some key-value pairs
     key_values = dict()
@@ -153,24 +156,6 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
     # Populate the data
     key_values['Analysis_date_time'] = str(datetime.datetime.now())
 
-    for c, ch_spot_prop in enumerate(spots_properties):
-        key_values[f'Nr_of_spots_ch{c:02d}'] = len(ch_spot_prop)
-
-        key_values[f'Max_Intensity_ch{c:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
-        key_values[f'Max_Intensity_Roi_ch{c:02d}'] = \
-            ch_spot_prop[
-                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{c:02d}'])][
-                'label']
-
-        key_values[f'Min_Intensity_ch{c:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
-        key_values[f'Min_Intensity_Roi_ch{c:02d}'] = \
-            ch_spot_prop[
-                [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{c:02d}'])][
-                'label']
-
-        key_values[f'Min-Max_intensity_ratio_ch{c:02d}'] = key_values[f'Min_Intensity_ch{c:02d}'] / key_values[
-            f'Max_Intensity_ch{c:02d}']
-
     for ch, ch_spot_prop in enumerate(spots_properties):
 
         key_values[f'Nr_of_spots_ch{ch:02d}'] = len(ch_spot_prop)
@@ -214,15 +199,6 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                     median([d[0].item() for d in chs_dist['dist_zxy']])
 
     key_values['Distance_units'] = pixel_size_units[0]
-
-    # plot.plot_homogeneity_map(raw_stack=image,
-    #                           spots_properties=spots_properties,
-    #                           spots_positions=spots_positions,
-    #                           labels_stack=labels_stack)
-    #
-    # plot.plot_distances_maps(distances=spots_distances,
-    #                          x_dim=image.shape[-2],
-    #                          y_dim=image.shape[-1])
 
     return labels, properties, distances, key_values
 

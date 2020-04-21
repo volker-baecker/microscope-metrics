@@ -222,7 +222,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                 save_spots_point_rois(conn=connection,
                                       names=[p['name'] for p in properties],
                                       data=[p['data'] for p in properties],
-                                      image=image)  # nb_channels=len(al_conf.getlist('wavelengths'))
+                                      image=image)
 
         if al_conf.getboolean('do_vertical_res'):
             namespace = f'metrics/argolight/vertical_res/{config["MAIN"]["config_version"]}'

@@ -18,7 +18,9 @@ import logging
 module_logger = logging.getLogger('metrics.analysis.tools')
 
 
-def _segment_channel(channel, min_distance, method, threshold=None, sigma=None, low_corr_factor=1, high_corr_factor=1):
+def _segment_channel(channel, min_distance, method,
+                     threshold, sigma, low_corr_factor, high_corr_factor,
+                     indices):
     """Segment a channel (3D numpy array)
     """
     if threshold is None:
@@ -40,13 +42,12 @@ def _segment_channel(channel, min_distance, method, threshold=None, sigma=None, 
         peaks = peak_local_max(channel,
                                min_distance=min_distance,
                                threshold_abs=(threshold * .5),
-                               exclude_border=True,
-                               indices=False)
+                               indices=indices)
         thresholded = np.copy(channel)
         thresholded[peaks] = thresholded.max()
         thresholded = apply_hysteresis_threshold(thresholded,
                                                  low=threshold * low_corr_factor,
-                                                 high=threshold * high_corr_factor
+                                                 high=threshold * high_corr_factor,
                                                  )
     else:
         raise Exception('A valid segmentation method was not provided')
@@ -57,32 +58,38 @@ def _segment_channel(channel, min_distance, method, threshold=None, sigma=None, 
 
 
 def segment_image(image,
-                  min_distance=20,
+                  min_distance,
                   sigma=None,
                   method='local_max',
                   low_corr_factors=None,
-                  high_corr_factors=None):
+                  high_corr_factors=None,
+                  indices=False):
     """Segment an image and return a labels object.
     Image must be provided as zctxy numpy array
     """
     module_logger.info('Image being segmented...')
 
     if low_corr_factors is None:
-        low_corr_factors = [.95] * image.shape[-3]
+        low_corr_factors = [.95] * image.shape[1]
         module_logger.warning('No low correction factor specified. Using defaults')
     if high_corr_factors is None:
-        high_corr_factors = [1.05] * image.shape[-3]
+        high_corr_factors = [1.05] * image.shape[1]
         module_logger.warning('No high correction factor specified. Using defaults')
+
+    if len(high_corr_factors) != image.shape[1] or len(low_corr_factors) != image.shape[1]:
+        raise Exception('The number of correction factors does not match the number of channels.')
 
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
     for c in range(image.shape[1]):
         labels_image[:, c, ...] = _segment_channel(image[:, c, ...],
                                                    min_distance=min_distance,
-                                                   sigma=sigma,
                                                    method=method,
+                                                   threshold=None,
+                                                   sigma=sigma,
                                                    low_corr_factor=low_corr_factors[c],
-                                                   high_corr_factor=high_corr_factors[c])
+                                                   high_corr_factor=high_corr_factors[c],
+                                                   indices=indices)
     return labels_image
 
 
@@ -119,7 +126,7 @@ def _compute_channel_spots_properties(channel, label_channel, remove_center_cros
     return ch_properties, ch_positions
 
 
-def compute_spots_properties(image, labels, remove_center_cross=True, pixel_size=None):
+def compute_spots_properties(image, labels, remove_center_cross=False, pixel_size=None):
     """Computes a number of properties for the PSF-like spots found on an image provided they are segmented"""
     # TODO: Verify dimensions of image and labels are the same
     properties = list()
