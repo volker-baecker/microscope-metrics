@@ -40,21 +40,11 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                                                pixel_size=pixel_size,
                                                )
 
-    # Return some key-value pairs
+    # Prepare key-value pairs
     key_values = dict()
 
-    # Return some tables
-    properties = [{'name': 'roi_volume_units',
-                   'desc': 'Volume units for the ROIs.',
-                   'getter': lambda x, props: [x for n in range(len(props))],
-                   'data': list(),
-                   },
-                  {'name': 'roi_weighted_centroid_units',
-                   'desc': 'Weighted Centroid coordinates units for the ROIs.',
-                   'getter': lambda x, props: [x for n in range(len(props))],
-                   'data': list(),
-                   },
-                  {'name': 'channel',
+    # Prepare tables
+    properties = [{'name': 'channel',
                    'desc': 'Channel.',
                    'getter': lambda ch, props: [ch for x in props],
                    'data': list(),
@@ -67,6 +57,11 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                   {'name': 'volume',
                    'desc': 'Volume of the ROIs.',
                    'getter': lambda ch, props: [p['area'].item() for p in props],
+                   'data': list(),
+                   },
+                  {'name': 'roi_volume_units',
+                   'desc': 'Volume units for the ROIs.',
+                   'getter': lambda ch, props: ['VOXEL' for n in range(len(props))],
                    'data': list(),
                    },
                   {'name': 'max_intensity',
@@ -104,14 +99,14 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                    'getter': lambda ch, props: [p['weighted_centroid'][0].item() for p in props],
                    'data': list(),
                    },
+                  {'name': 'roi_weighted_centroid_units',
+                   'desc': 'Weighted centroid coordinates units for the ROIs.',
+                   'getter': lambda ch, props: ['PIXEL' for n in range(len(props))],
+                   'data': list(),
+                   },
                   ]
 
-    distances = [{'name': 'distances_units',
-                  'desc': 'Weighted Centroid distances units.',
-                  'getter': lambda x, props: [x for n in props['dist_3d']],
-                  'data': list(),
-                  },
-                 {'name': 'channel_A',
+    distances = [{'name': 'channel_A',
                   'desc': 'Channel A.',
                   'getter': lambda props: [props['channels'][0] for p in props['dist_3d']],
                   'data': list(),
@@ -151,6 +146,11 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
                   'getter': lambda props: [p[0].item() for p in props['dist_zxy']],
                   'data': list(),
                   },
+                 {'name': 'distances_units',
+                  'desc': 'Weighted Centroid distances units.',
+                  'getter': lambda props: [pixel_size_units[0] for n in props['dist_3d']],
+                  'data': list(),
+                  },
                  ]
 
     # Populate the data
@@ -176,19 +176,11 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
             f'Max_Intensity_ch{ch:02d}']
 
         for prop in properties:
-            if prop['name'] == 'roi_volume_units':
-                prop['data'].extend(prop['getter']('VOXEL', ch_spot_prop))
-            elif prop['name'] == 'roi_weighted_centroid_units':
-                prop['data'].extend(prop['getter']('PIXEL', ch_spot_prop))
-            else:
-                prop['data'].extend(prop['getter'](ch, ch_spot_prop))
+            prop['data'].extend(prop['getter'](ch, ch_spot_prop))
 
     for ch, chs_dist in enumerate(spots_distances):
         for dists in distances:
-            if dists['name'] == 'distances_units':
-                dists['data'].extend(dists['getter'](pixel_size_units[0], chs_dist))
-            else:
-                dists['data'].extend(dists['getter'](chs_dist))
+            dists['data'].extend(dists['getter'](chs_dist))
 
             if dists['name'] == 'distance_3d':
                 key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \

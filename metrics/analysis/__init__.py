@@ -4,9 +4,10 @@ from itertools import product
 from metrics.interface import omero
 
 # import Argolight analysis tools
-from metrics.samples import argolight
+from metrics.samples import psf_beads, argolight
 
 from datetime import datetime
+from json import dumps
 
 # import logging
 import logging
@@ -205,15 +206,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                 col_data=[p['data'] for p in distances],
                                 omero_obj=image,
                                 namespace=namespace)
-                # for k in tables.keys():
-                #     save_data_table(conn=connection,
-                #                     table_name=f'AnalysisDate_argolight_D_{k}',
-                #                     col_names=tables[k]['table_col_names'],
-                #                     col_descriptions=tables[k]['table_col_desc'],
-                #                     col_data=tables[k]['table_data'],
-                #                     omero_obj=image,
-                #                     namespace=namespace)
-                #
+
                 save_data_key_values(conn=connection,
                                      key_values=key_values,
                                      omero_obj=image,
@@ -268,4 +261,66 @@ def analyze_dataset(connection, script_params, dataset, config):
                                data=key_values,
                                image=image)
 
-        module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')
+    if config.has_section('PSF_BEADS'):
+        module_logger.info(f'Running analysis on PSF beads samples')
+        psf_conf = config['PSF_BEADS']
+        if psf_conf.getboolean('do_beads'):
+            namespace = f'metrics/psf_beads/spots/{config["MAIN"]["config_version"]}'
+            psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf['psf_image_tag'])
+            for image in psf_images:
+                psf_conf['pixel_size'] = dumps([x for x in omero.get_pixel_size(image)])
+                psf_conf['pixel_size_units'] = dumps([x for x in omero.get_pixel_units(image)])
+                psf_conf['NA'] = '1.4'
+                psf_conf['min_distance'] = '50'
+                psf_conf['sigma'] = '1'
+
+                psf_image = get_omero_data(image=image)
+                module_logger.info(f'Analyzing PSF image: {image.getName()}')
+                bead_images, properties, key_values = psf_beads.analyze_image(image=psf_image['image_data'],
+                                                                              config=psf_conf)
+                labels, \
+                    properties, \
+                    distances,  \
+                    key_values = argolight.analyze_spots(image=spots_image['image_data'],
+                                                         pixel_size=spots_image['pixel_size'],
+                                                         pixel_size_units=spots_image['pixel_units'],
+                                                         low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
+                                                         high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
+                labels = np.expand_dims(labels, 2)
+                save_labels_image(conn=connection,
+                                  labels_image=labels,
+                                  image_name=f'{spots_image["image_name"]}_rois',
+                                  description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
+                                  dataset=dataset,
+                                  source_image_id=image.getId(),
+                                  metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+
+                save_data_table(conn=connection,
+                                table_name='AnalysisDate_argolight_D_properties',
+                                col_names=[p['name'] for p in properties],
+                                col_descriptions=[p['desc'] for p in properties],
+                                col_data=[p['data'] for p in properties],
+                                omero_obj=image,
+                                namespace=namespace)
+
+                save_data_table(conn=connection,
+                                table_name='AnalysisDate_argolight_D_distances',
+                                col_names=[p['name'] for p in distances],
+                                col_descriptions=[p['desc'] for p in distances],
+                                col_data=[p['data'] for p in distances],
+                                omero_obj=image,
+                                namespace=namespace)
+
+                save_data_key_values(conn=connection,
+                                     key_values=key_values,
+                                     omero_obj=image,
+                                     namespace=namespace)
+
+                save_spots_point_rois(conn=connection,
+                                      names=[p['name'] for p in properties],
+                                      data=[p['data'] for p in properties],
+                                      image=image)
+
+
+
+    module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')

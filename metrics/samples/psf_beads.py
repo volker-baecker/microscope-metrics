@@ -7,7 +7,7 @@ from skimage.filters import gaussian
 from skimage.feature import peak_local_max
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
-from statistics import median
+from statistics import median, mean
 import datetime
 
 # Creating logging services
@@ -45,7 +45,7 @@ def _fit_gaussian(profile, guess=None):
 
     return fitted_profile, fwhm
 
-def analize_bead(image):
+def _analize_bead(image):
 
     # Find the strongest sections to generate profiles
     x_max = np.max(image, axis=(0, 1))
@@ -65,14 +65,12 @@ def analize_bead(image):
     y_fitted_profile, y_fwhm = _fit_gaussian(y_profile)
     z_fitted_profile, z_fwhm = _fit_gaussian(z_profile)
 
-    return (x_profile, y_profile, z_profile), \
-           (x_fitted_profile, y_fitted_profile, z_fitted_profile), \
-           (x_fwhm, y_fwhm, z_fwhm)
+    return (z_profile, y_profile, x_profile), \
+           (z_fitted_profile, y_fitted_profile, x_fitted_profile), \
+           (z_fwhm, y_fwhm, x_fwhm)
 
 
-    return x_profile, y_profile, z_profile
-
-def find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_corr_factors, high_corr_factors):
+def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_corr_factors, high_corr_factors):
 
     if min_distance is None:
         min_distance = estimate_min_bead_distance(NA, pixel_size)
@@ -82,160 +80,166 @@ def find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_c
     if sigma is not None:
         image_mip = gaussian(image=image_mip,
                              multichannel=False,
-                             sigma=(sigma, sigma),
+                             sigma=sigma,
                              preserve_range=True)
 
     # Find bead centers
-    positions = peak_local_max(image=image_mip,
-                               threshold_rel=0.2,
-                               indices=True)
+    positions_2d = peak_local_max(image=image_mip,
+                                  threshold_rel=0.2,
+                                  indices=True)
+    # Add the mas intensity value in z
+    positions_3d = np.insert(positions_2d[:], 0, np.argmax(image[:, positions_2d[:,0], positions_2d[:,1]], axis=0), axis=1)
 
-    nr_beads = positions.shape[0]
+    nr_beads = positions_2d.shape[0]
     module_logger.info(f'Beads found: {nr_beads}')
 
     # Exclude beads too close to the edge
-    edge_keep_map = (positions[:,0] > min_distance) & \
-                    (positions[:,0] < image_mip.shape[0] - min_distance) & \
-                    (positions[:,1] > min_distance) & \
-                    (positions[:,1] < image_mip.shape[1] - min_distance)
-    module_logger.info(f'Beads too close to the edge: {nr_beads - np.sum(edge_keep_map)}')
+    edge_keep_mask = (positions_2d[:,0] > min_distance) & \
+                     (positions_2d[:,0] < image_mip.shape[0] - min_distance) & \
+                     (positions_2d[:,1] > min_distance) & \
+                     (positions_2d[:,1] < image_mip.shape[1] - min_distance)
+    module_logger.info(f'Beads too close to the edge: {nr_beads - np.sum(edge_keep_mask)}')
 
     # Exclude beads too close to eachother
-    proximity_keep_map = np.ones((nr_beads, nr_beads),dtype=bool)
-    for i, pos in enumerate(positions):
-        proximity_keep_map[i] = (abs(positions[:, 0] - pos[0]) > min_distance) |  \
-                                (abs(positions[:, 1] - pos[1]) > min_distance)
-        proximity_keep_map[i,i] = True  # Correcting the diagonal
-    proximity_keep_map = np.all(proximity_keep_map, axis=0)
-    module_logger.info(f'Beads too close to eachother: {nr_beads - np.sum(proximity_keep_map)}')
+    proximity_keep_mask = np.ones((nr_beads, nr_beads),dtype=bool)
+    for i, pos in enumerate(positions_2d):
+        proximity_keep_mask[i] = (abs(positions_2d[:, 0] - pos[0]) > min_distance) |  \
+                                (abs(positions_2d[:, 1] - pos[1]) > min_distance)
+        proximity_keep_mask[i,i] = True  # Correcting the diagonal
+    proximity_keep_mask = np.all(proximity_keep_mask, axis=0)
+    module_logger.info(f'Beads too close to eachother: {nr_beads - np.sum(proximity_keep_mask)}')
 
     # Exclude beads too intense or too weak
-    # TODO: Exclude those.
+    intensity_keep_mask = np.ones(nr_beads, dtype=bool)
+    # TODO: Implement beads intensity filter
+    module_logger.info(f'Beads too intense (probably more than one bead): {nr_beads - np.sum(intensity_keep_mask)}')
 
-    keep_map = edge_keep_map & proximity_keep_map
-    module_logger.info(f'Beads either too close to the edge or to eachother: {nr_beads - np.sum(keep_map)}')
+    keep_mask = edge_keep_mask & proximity_keep_mask & intensity_keep_mask
+    module_logger.info(f'Beads kept for analysis: {np.sum(keep_mask)}')
 
-    positions = positions[keep_map,:]
-    module_logger.info(f'Beads kept: {positions.shape[0]}')
+    positions = positions_3d[keep_mask,:]
+    pos_edge_disc = positions_3d[np.logical_not(edge_keep_mask),:]
+    pos_proximity_disc = positions_3d[np.logical_not(proximity_keep_mask),:]
+    pos_intensity_disc = positions_3d[np.logical_not(intensity_keep_mask),:]
 
-    frames = list()
-    for pos in positions:
-        frames.append(image[:,  \
-                            (pos[0]-(min_distance//2)):(pos[0]+(min_distance//2)),  \
-                            (pos[1]-(min_distance//2)):(pos[1]+(min_distance//2))]
-                      )
-
-    profiles = list()
-    for frame in frames:
-        profiles.append(analize_bead(frame))
-
-    return positions, profiles
+    bead_iamges = list()
+    for pos in positions_2d:
+        bead_iamges.append(image[:,  \
+                                 (pos[0]-(min_distance//2)):(pos[0]+(min_distance//2)),  \
+                                 (pos[1]-(min_distance//2)):(pos[1]+(min_distance//2))  \
+                                ]
+                          )
+    return bead_iamges, positions, pos_edge_disc, pos_proximity_disc, pos_intensity_disc
 
 
-    #
+def analyze_image(image, config):
 
-    #
-    #
-    # spots_properties, spots_positions = compute_spots_properties(image=image,
-    #                                                              labels=labels,
-    #                                                              )
-    #
-    # # Return some key-value pairs
-    # key_values = dict()
-    #
-    # # Return some tables
-    # properties = [{'name': 'roi_volume_units',
-    #                'desc': 'Volume units for the ROIs.',
-    #                'getter': lambda x, props: [x for n in range(len(props))],
-    #                'data': list(),
-    #                },
-    #               {'name': 'roi_weighted_centroid_units',
-    #                'desc': 'Weighted Centroid coordinates units for the ROIs.',
-    #                'getter': lambda x, props: [x for n in range(len(props))],
-    #                'data': list(),
-    #                },
-    #               {'name': 'channel',
-    #                'desc': 'Channel.',
-    #                'getter': lambda ch, props: [ch for x in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'mask_labels',
-    #                'desc': 'Labels of the mask ROIs.',
-    #                'getter': lambda ch, props: [p['label'] for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'volume',
-    #                'desc': 'Volume of the ROIs.',
-    #                'getter': lambda ch, props: [p['area'].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'max_intensity',
-    #                'desc': 'Maximum intensity of the ROIs.',
-    #                'getter': lambda ch, props: [p['max_intensity'].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'min_intensity',
-    #                'desc': 'Minimum intensity of the ROIs.',
-    #                'getter': lambda ch, props: [p['min_intensity'].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'mean_intensity',
-    #                'desc': 'Mean intensity of the ROIs.',
-    #                'getter': lambda ch, props: [p['mean_intensity'].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'integrated_intensity',
-    #                'desc': 'Integrated intensity of the ROIs.',
-    #                'getter': lambda ch, props: [p['integrated_intensity'].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'x_weighted_centroid',
-    #                'desc': 'Weighted Centroid X coordinates of the ROIs.',
-    #                'getter': lambda ch, props: [p['weighted_centroid'][2].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'y_weighted_centroid',
-    #                'desc': 'Weighted Centroid Y coordinates of the ROIs.',
-    #                'getter': lambda ch, props: [p['weighted_centroid'][1].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               {'name': 'z_weighted_centroid',
-    #                'desc': 'Weighted Centroid Z coordinates of the ROIs.',
-    #                'getter': lambda ch, props: [p['weighted_centroid'][0].item() for p in props],
-    #                'data': list(),
-    #                },
-    #               ]
-    #
-    # # Populate the data
-    # key_values['Analysis_date_time'] = str(datetime.datetime.now())
-    #
-    # for ch, ch_spot_prop in enumerate(spots_properties):
-    #     key_values[f'Nr_of_spots_ch{ch:02d}'] = len(ch_spot_prop)
-    #
-    #     key_values[f'Max_Intensity_ch{ch:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
-    #     key_values[f'Max_Intensity_Roi_ch{ch:02d}'] = \
-    #         ch_spot_prop[
-    #             [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{ch:02d}'])][
-    #             'label']
-    #
-    #     key_values[f'Min_Intensity_ch{ch:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
-    #     key_values[f'Min_Intensity_Roi_ch{ch:02d}'] = \
-    #         ch_spot_prop[
-    #             [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{ch:02d}'])][
-    #             'label']
-    #
-    #     key_values[f'Min-Max_intensity_ratio_ch{ch:02d}'] = key_values[f'Min_Intensity_ch{ch:02d}'] / key_values[
-    #         f'Max_Intensity_ch{ch:02d}']
-    #
-    #     for prop in properties:
-    #         if prop['name'] == 'roi_volume_units':
-    #             prop['data'].extend(prop['getter']('VOXEL', ch_spot_prop))
-    #         elif prop['name'] == 'roi_weighted_centroid_units':
-    #             prop['data'].extend(prop['getter']('PIXEL', ch_spot_prop))
-    #         else:
-    #             prop['data'].extend(prop['getter'](ch, ch_spot_prop))
-    #
-    # return labels, properties, key_values
+    # Get some ocnfig parameters
+    pixel_size_units = config.getlist('pixel_size_units')
+    pixel_size = config.getlistfloat('pixel_size')
+
+    # Find the beads
+    bead_images, \
+        positions, \
+        positions_edge_discarded, \
+        positions_proximity_discarded, \
+        positions_intensity_discarded = _find_beads(image=image,
+                                                    pixel_size=pixel_size,
+                                                    NA=config.getfloat('NA'),
+                                                    min_distance=config.getint('min_distance', None),
+                                                    sigma=config.getint('sigma', None))
+
+    # Generate profiles and measure FWHM
+    original_profiles = list()
+    fitted_profiles = list()
+    fwhm_values = list()
+    for bead_image in bead_iamges:
+        opr, fpr, fwhm = _analize_bead(bead_image)
+        original_profiles.append(opr)
+        fitted_profiles.append(fpr)
+        fwhm = tuple([f * p for f, p in zip(fwhm, pixel_size)])
+        fwhm_values.append(fwhm)
+
+    # Prepare key-value pairs
+    key_values = dict()
+
+    # Prepare tables
+    properties = [{'name': 'bead_image',
+                   'desc': 'Reference to bead image.',
+                   'getter': lambda i, pos, fwhm, bead_image: [0],  # We leave empty as it is populated after roi creation
+                   'data': list(),
+                   },
+                  {'name': 'bead_roi',
+                   'desc': 'Reference to bead roi.',
+                   'getter': lambda i, pos, fwhm, bead_image: [0],  # We leave empty as it is populated after roi creation
+                   'data': list(),
+                   },
+                  {'name': 'roi_label',
+                   'desc': 'Label of the bead roi.',
+                   'getter': lambda i, pos, fwhm, bead_image: [i],
+                   'data': list(),
+                   },
+                  {'name': 'max_intensity',
+                   'desc': 'Maximum intensity of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [bead_image.max().item()],
+                   'data': list(),
+                   },
+                  {'name': 'x_centroid',
+                   'desc': 'Centroid X coordinate of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [pos[2].item()],
+                   'data': list(),
+                   },
+                  {'name': 'y_centroid',
+                   'desc': 'Centroid Y coordinate of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [pos[1].item()],
+                   'data': list(),
+                   },
+                  {'name': 'z_centroid',
+                   'desc': 'Centroid Z coordinate of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [pos[0].item()],
+                   'data': list(),
+                   },
+                  {'name': 'bead_centroid_units',
+                   'desc': 'Centroid coordinates units for the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: ['PIXEL'],
+                   'data': list(),
+                   },
+                  {'name': 'x_fwhm',
+                   'desc': 'FWHM in the X axis through the max intensity point of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[2]],
+                   'data': list(),
+                   },
+                  {'name': 'y_fwhm',
+                   'desc': 'FWHM in the Y axis through the max intensity point of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[1]],
+                   'data': list(),
+                   },
+                  {'name': 'z_fwhm',
+                   'desc': 'FWHM in the Z axis through the max intensity point of the bead.',
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[0]],
+                   'data': list(),
+                   },
+                  {'name': 'fwhm_units',
+                   'desc': 'FWHM units.',
+                   'getter': lambda i, pos, fwhm, bead_image: [pixel_size_units[0]],
+                   'data': list(),
+                   },
+                  ]
+
+    # Populate the data
+    key_values['Analysis_date_time'] = str(datetime.datetime.now())
+
+    for i, (pos, fwhm, bead_image) in enumerate(zip(positions, fwhm_values, bead_images)):
+        for prop in properties:
+            prop['data'].extend(prop['getter'](i, pos, fwhm, bead_image))
+
+    key_values['Nr_of_beads_analyzed'] = positions.shape[0]
+    key_values['Mean_X_FWHM'] = mean(properties[[p['name'] for p in properties].index('x_fwhm')]['data'])
+    key_values['Mean_Y_FWHM'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
+    key_values['Mean_Z_FWHM'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
+    key_values['FWHM_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
+
+    return bead_images, properties, key_values
 
 
 # _____________________________________

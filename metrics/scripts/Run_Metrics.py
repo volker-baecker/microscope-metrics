@@ -77,7 +77,7 @@ def run_script_local():
                                 port=PORT,
                                 host=HOST)
 
-    script_params = {'IDs': [1],
+    script_params = {'IDs': [154],
                      'Configuration file name': 'monthly_config.ini',
                      'Comment': 'This is a test comment'}
 

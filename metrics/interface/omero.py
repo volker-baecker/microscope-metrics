@@ -82,8 +82,8 @@ def get_image_shape(image):
         image_shape = (image.getSizeZ(),
                        image.getSizeC(),
                        image.getSizeT(),
-                       image.getSizeX(),
-                       image.getSizeY())
+                       image.getSizeY(),
+                       image.getSizeX())
     except Exception as e:
         raise e
 
@@ -124,7 +124,7 @@ def get_intensities(image, z_range=None, c_range=None, t_range=None, x_range=Non
         whole_planes = False
 
     ranges = list(range(5))
-    for dim, r in enumerate([z_range, c_range, t_range, x_range, y_range]):
+    for dim, r in enumerate([z_range, c_range, t_range, y_range, x_range]):
         # Verify that requested ranges are within the available data
         if r is None:  # Range is not specified
             ranges[dim] = range(image_shape[dim])
@@ -155,6 +155,8 @@ def get_intensities(image, z_range=None, c_range=None, t_range=None, x_range=Non
         data_type = pixels_type.value + str(pixels_type.bitSize)  # TODO: Verify this is working for all data types
     else:
         data_type = pixels_type.value
+
+    # intensities = np.zeros(output_shape, dtype=data_type)
 
     intensities = np.zeros((nr_planes,
                             output_shape[3],
