@@ -212,7 +212,7 @@ def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, p
         resolution_method = compute_resolution(image=image,
                                                axis=axis,
                                                measured_band=measured_band,
-                                               prominence=.2,
+                                               prominence=.264,
                                                do_angle_refinement=False)
     # resolution in native units
     if precision is not None:
@@ -323,7 +323,7 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     return normalized_profile, z_focus, peak_positions, peak_heights, res, res_indices
 
 
-def compute_resolution(image, axis, measured_band, prominence=0.1, do_angle_refinement=False):
+def compute_resolution(image, axis, measured_band, prominence, do_angle_refinement=False):
     profiles = list()
     z_planes = list()
     peaks_positions = list()

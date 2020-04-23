@@ -9,6 +9,7 @@ from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from statistics import median, mean
 import datetime
+from math import sin, asin, cos
 
 # Creating logging services
 import logging
@@ -22,16 +23,66 @@ module_logger = logging.getLogger('metrics.samples.psf_beads')
 # TODO: Implemented single channel only
 
 
-def estimate_min_bead_distance(NA, pixel_size):
+def estimate_min_bead_distance(na, pixel_size):
     return 50
 
 
-def calculate_nyquist():
-    pass
+def calculate_nyquist(microscope_type, na, refractive_index, emission_wave, excitation_wave=None):
+    if refractive_index is None:
+        module_logger.warning('Refractive index is being guessed. Nyquist criteria will not be correct.')
+        if na > .8:
+            refractive_index = 1.5
+        else:
+            refractive_index = 1.0
+    alpha = asin(na/refractive_index)
+    # Theoretical resolutions for confocal microscope are only attained with very closed pinhole
+    # We add a tolerance factor to render theoretical resolution more realistic
+    tolerance = 1.6
+    nyquist_delta = {}
+    if microscope_type is None:
+        module_logger.warning('Microscope type undefined to calculate Nyquist criterion. Falling back into Wide-Field')
+        nyquist_delta = calculate_nyquist('wf', na, refractive_index, emission_wave, excitation_wave)
+    elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
+        nyquist_delta['lateral'] = emission_wave / (4 * refractive_index * sin(alpha))
+        nyquist_delta['axial'] = emission_wave / (2 * refractive_index * (1 - cos(alpha)))
+        nyquist_delta['units'] = 'MICROMETER'
+    elif microscope_type.lower() in ['confocal']:
+        nyquist_delta['lateral'] = tolerance * excitation_wave / (8 * refractive_index * sin(alpha))
+        nyquist_delta['axial'] = tolerance * excitation_wave / (4 * refractive_index * (1 - cos(alpha)))
+        nyquist_delta['units'] = 'MICROMETER'
+    else:
+        module_logger.warning('Could not find microscope type to calculate Nyquist criterion. Falling back into Wide-Field')
+        nyquist_delta = calculate_nyquist('wf', na, refractive_index, emission_wave, excitation_wave)
+
+    return nyquist_delta
 
 
-def calculate_theoretcal_resolution():
-    pass
+def calculate_theoretcal_resolution(microscope_type, na, refractive_index, emission_wave, excitation_wave=None):
+    if refractive_index is None:
+        module_logger.warning('Refractive index is being guessed. Theoretical resolutions will not be correct.')
+        if na > .8:
+            refractive_index = 1.5
+        else:
+            refractive_index = 1.0
+    theoretical_res = {}
+    if microscope_type is None:
+        module_logger.warning('Microscope type undefined to calculate theoretical resolution. Falling back into Wide-Field')
+        theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave, excitation_wave=excitation_wave)
+    elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
+        theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
+        theoretical_res['Rayleigh_lateral'] = .61 * emission_wave / na
+        theoretical_res['Rayleigh_axial'] = 2 * emission_wave * refractive_index / na ** 2
+        theoretical_res['units'] = 'MICROMETER'
+    elif microscope_type.lower() in ['confocal']:
+        theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
+        theoretical_res['Rayleigh_lateral'] = .4 * emission_wave / na
+        theoretical_res['Rayleigh_axial'] = 1.4 * emission_wave * refractive_index / na ** 2
+        theoretical_res['units'] = 'MICROMETER'
+    else:
+        module_logger.warning('Could not find microscope type to calculate theoretical resolution. Falling back into Wide-Field')
+        theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave, excitation_wave=excitation_wave)
+
+    return theoretical_res
 
 
 def _fit_gaussian(profile, guess=None):
@@ -75,6 +126,7 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     if min_distance is None:
         min_distance = estimate_min_bead_distance(NA, pixel_size)
 
+    image = np.squeeze(image)
     image_mip = np.max(image, axis=0)
 
     if sigma is not None:
@@ -88,7 +140,7 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
                                   threshold_rel=0.2,
                                   indices=True)
     # Add the mas intensity value in z
-    positions_3d = np.insert(positions_2d[:], 0, np.argmax(image[:, positions_2d[:,0], positions_2d[:,1]], axis=0), axis=1)
+    positions_3d = np.insert(positions_2d[:], 0, np.argmax(image[:, positions_2d[:, 0], positions_2d[:, 1]], axis=0), axis=1)
 
     nr_beads = positions_2d.shape[0]
     module_logger.info(f'Beads found: {nr_beads}')
@@ -132,11 +184,38 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     return bead_iamges, positions, pos_edge_disc, pos_proximity_disc, pos_intensity_disc
 
 
-def analyze_image(image, config):
+def analyze_image(image_data, config):
 
-    # Get some ocnfig parameters
-    pixel_size_units = config.getlist('pixel_size_units')
-    pixel_size = config.getlistfloat('pixel_size')
+    # Get intensities
+    image = image_data['image_data']
+
+    # Get some config parameters
+    pixel_size_units = image_data['pixel_units']
+    pixel_size = image_data['pixel_size']
+    na = image_data['lens_na']
+    refractive_index = image_data['refractive_index']
+    magnification = image_data['lens_magnification']
+    excitation_waves = image_data['excitation_waves']
+    emission_waves = image_data['emission_waves']
+
+    # TODO: Include microscope type into config
+    # Get resolution parameters
+    theoretical_resolution = calculate_theoretcal_resolution(microscope_type=None,
+                                                             na=na,
+                                                             refractive_index=refractive_index,
+                                                             emission_wave=emission_waves[0],
+                                                             excitation_wave=excitation_waves[0])
+    nyquist = calculate_nyquist(microscope_type=None,
+                                na=na,
+                                refractive_index=refractive_index,
+                                emission_wave=emission_waves[0],
+                                excitation_wave=emission_waves[0])
+    # TODO: validate units
+    # Validating nyquist
+    if pixel_size[1] < nyquist['lateral']:
+        module_logger.warning('Nyquist criterion is not fulfilled in the lateral direction')
+    if pixel_size[0] < nyquist['axial']:
+        module_logger.warning('Nyquist criterion is not fulfilled in the axial direction')
 
     # Find the beads
     bead_images, \
@@ -145,7 +224,7 @@ def analyze_image(image, config):
         positions_proximity_discarded, \
         positions_intensity_discarded = _find_beads(image=image,
                                                     pixel_size=pixel_size,
-                                                    NA=config.getfloat('NA'),
+                                                    NA=na,
                                                     min_distance=config.getint('min_distance', None),
                                                     sigma=config.getint('sigma', None))
 
@@ -153,7 +232,7 @@ def analyze_image(image, config):
     original_profiles = list()
     fitted_profiles = list()
     fwhm_values = list()
-    for bead_image in bead_iamges:
+    for bead_image in bead_images:
         opr, fpr, fwhm = _analize_bead(bead_image)
         original_profiles.append(opr)
         fitted_profiles.append(fpr)
@@ -226,6 +305,8 @@ def analyze_image(image, config):
                    },
                   ]
 
+    # TODO: Make table or images with the profiles
+
     # Populate the data
     key_values['Analysis_date_time'] = str(datetime.datetime.now())
 
@@ -238,6 +319,9 @@ def analyze_image(image, config):
     key_values['Mean_Y_FWHM'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
     key_values['Mean_Z_FWHM'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
     key_values['FWHM_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
+    key_values['Theoretical_Rayleigh_lateral_resolution'] = theoretical_resolution['Rayleigh_lateral']
+    key_values['Theoretical_Rayleigh_axial_resolution'] = theoretical_resolution['Rayleigh_axial']
+    key_values['Theoretical_resolution_units'] = theoretical_resolution['units']
 
     return bead_images, properties, key_values
 

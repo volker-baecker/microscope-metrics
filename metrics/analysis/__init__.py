@@ -16,19 +16,63 @@ import logging
 module_logger = logging.getLogger('metrics.analysis')
 
 
+def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
+    start = name.find(token_left)
+    if start == -1:
+        return None
+    name = name[start + len(token_left):]
+    end = name.find(token_right)
+    name = metadata_type(name[:end])
+    if metadata_type is None:
+        return name
+    else:
+        return metadata_type(name)
+
+
 def get_omero_data(image):
     image_name = image.getName()
     raw_img = omero.get_intensities(image)
-    # Images from OMERO come in zctxy dimensions and locally as zcxy.
+    # Images from OMERO come in zctyx dimensions and locally as zcxy.
     # The easiest for the moment is to remove t from the omero image
     if raw_img.shape[2] == 1:
-        raw_img = np.squeeze(raw_img, 2)
+        raw_img = np.squeeze(raw_img, 2)  # TODO: Fix this time dimension.
     else:
         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
     pixel_size = omero.get_pixel_size(image)
     pixel_units = omero.get_pixel_units(image)
 
-    return {'image_data': raw_img, 'image_name': image_name, 'pixel_size': pixel_size, 'pixel_units': pixel_units}
+    try:
+        objective_settings = image.getObjectiveSettings()
+        refractive_index = objective_settings.getRefractiveIndex()
+        objective = objective_settings.getObjective()
+        lens_na = objective.getLensNA()
+        lens_magnification = objective.getNominalMagnification()
+    except AttributeError:
+        module_logger.warning(f'Image {image.getName()} does not have a declared objective settings.'
+                              f'Falling back to metadata stored in image name.')
+        refractive_index = _get_metadata_from_name(image_name, '_ri-', '_', float)
+        lens_na = _get_metadata_from_name(image_name, '_na-', '_', float)
+        lens_magnification = _get_metadata_from_name(image_name, '_mag-', '_', float)
+
+    channels = image.getChannels()
+    excitation_waves = [ch.getExcitationWave() for ch in channels]
+    emission_waves = [ch.getEmissionWave() for ch in channels]
+    if excitation_waves[0] is None:
+        module_logger.warning(f'Image {image.getName()} does not have a declared channels settings.'
+                              f'Falling back to metadata stored in image name.')
+        excitation_waves = [_get_metadata_from_name(image_name, '_ex-', '_', float)]  # TODO: make this work with more than one channel
+        emission_waves = [_get_metadata_from_name(image_name, '_em-', '_', float)]
+
+    return {'image_data': raw_img,
+            'image_name': image_name,
+            'pixel_size': pixel_size,
+            'pixel_units': pixel_units,
+            'refractive_index': refractive_index,
+            'lens_na': lens_na,
+            'lens_magnification': lens_magnification,
+            'excitation_waves': excitation_waves,
+            'emission_waves': emission_waves,
+            }
 
 
 def save_data_table(conn, table_name, col_names, col_descriptions, col_data, omero_obj, namespace):
@@ -268,32 +312,19 @@ def analyze_dataset(connection, script_params, dataset, config):
             namespace = f'metrics/psf_beads/spots/{config["MAIN"]["config_version"]}'
             psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf['psf_image_tag'])
             for image in psf_images:
-                psf_conf['pixel_size'] = dumps([x for x in omero.get_pixel_size(image)])
-                psf_conf['pixel_size_units'] = dumps([x for x in omero.get_pixel_units(image)])
-                psf_conf['NA'] = '1.4'
-                psf_conf['min_distance'] = '50'
-                psf_conf['sigma'] = '1'
-
                 psf_image = get_omero_data(image=image)
                 module_logger.info(f'Analyzing PSF image: {image.getName()}')
-                bead_images, properties, key_values = psf_beads.analyze_image(image=psf_image['image_data'],
+                bead_images, properties, key_values = psf_beads.analyze_image(image_data=psf_image,
                                                                               config=psf_conf)
-                labels, \
-                    properties, \
-                    distances,  \
-                    key_values = argolight.analyze_spots(image=spots_image['image_data'],
-                                                         pixel_size=spots_image['pixel_size'],
-                                                         pixel_size_units=spots_image['pixel_units'],
-                                                         low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                                         high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
-                labels = np.expand_dims(labels, 2)
-                save_labels_image(conn=connection,
-                                  labels_image=labels,
-                                  image_name=f'{spots_image["image_name"]}_rois',
-                                  description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
-                                  dataset=dataset,
-                                  source_image_id=image.getId(),
-                                  metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+
+                for bead_image in bead_images:
+                    save_labels_image(conn=connection,
+                                      labels_image=labels,
+                                      image_name=f'{spots_image["image_name"]}_rois',
+                                      description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
+                                      dataset=dataset,
+                                      source_image_id=image.getId(),
+                                      metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
                 save_data_table(conn=connection,
                                 table_name='AnalysisDate_argolight_D_properties',
