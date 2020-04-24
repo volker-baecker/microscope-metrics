@@ -152,18 +152,18 @@ def save_line_rois(conn, data, image):
         omero.create_roi(connection=conn, image=image, shapes=shapes)
 
 
-def save_labels_image(conn, labels_image, image_name, description, dataset, source_image_id, metrics_tag_id=None):
+def create_image(conn, image_intensities, image_name, description, dataset, source_image_id, metrics_tag_id=None):
 
-    zct_list = list(product(range(labels_image.shape[0]),
-                            range(labels_image.shape[1]),
-                            range(labels_image.shape[2])))
-    zct_generator = (labels_image[z, c, t, :, :] for z, c, t in zct_list)
+    zct_list = list(product(range(image_intensities.shape[0]),
+                            range(image_intensities.shape[1]),
+                            range(image_intensities.shape[2])))
+    zct_generator = (image_intensities[z, c, t, :, :] for z, c, t in zct_list)
 
     new_image = conn.createImageFromNumpySeq(zctPlanes=zct_generator,
                                              imageName=image_name,
-                                             sizeZ=labels_image.shape[0],
-                                             sizeC=labels_image.shape[1],
-                                             sizeT=labels_image.shape[2],
+                                             sizeZ=image_intensities.shape[0],
+                                             sizeC=image_intensities.shape[1],
+                                             sizeT=image_intensities.shape[2],
                                              description=description,
                                              dataset=dataset,
                                              sourceImageId=source_image_id)
@@ -174,6 +174,8 @@ def save_labels_image(conn, labels_image, image_name, description, dataset, sour
             module_logger.warning('Metrics tag is not found. New images will not be tagged. Verify metrics tag existence and id.')
         else:
             new_image.linkAnnotation(tag)
+
+    return new_image
 
 
 def create_laser_power_keys(conn, laser_lines, units, dataset, namespace):
@@ -227,16 +229,16 @@ def analyze_dataset(connection, script_params, dataset, config):
                                                          low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
                                                          high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
                 labels = np.expand_dims(labels, 2)
-                save_labels_image(conn=connection,
-                                  labels_image=labels,
-                                  image_name=f'{spots_image["image_name"]}_rois',
-                                  description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
-                                  dataset=dataset,
-                                  source_image_id=image.getId(),
-                                  metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+                create_image(conn=connection,
+                             image_intensities=labels,
+                             image_name=f'{spots_image["image_name"]}_rois',
+                             description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
+                             dataset=dataset,
+                             source_image_id=image.getId(),
+                             metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
                 save_data_table(conn=connection,
-                                table_name='AnalysisDate_argolight_D_properties',
+                                table_name='Analysis_argolight_D_properties',
                                 col_names=[p['name'] for p in properties],
                                 col_descriptions=[p['desc'] for p in properties],
                                 col_data=[p['data'] for p in properties],
@@ -244,7 +246,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                 namespace=namespace)
 
                 save_data_table(conn=connection,
-                                table_name='AnalysisDate_argolight_D_distances',
+                                table_name='Analysis_argolight_D_distances',
                                 col_names=[p['name'] for p in distances],
                                 col_descriptions=[p['desc'] for p in distances],
                                 col_data=[p['data'] for p in distances],
@@ -317,40 +319,41 @@ def analyze_dataset(connection, script_params, dataset, config):
                 bead_images, properties, key_values = psf_beads.analyze_image(image_data=psf_image,
                                                                               config=psf_conf)
 
-                for bead_image in bead_images:
-                    save_labels_image(conn=connection,
-                                      labels_image=labels,
-                                      image_name=f'{spots_image["image_name"]}_rois',
-                                      description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
-                                      dataset=dataset,
-                                      source_image_id=image.getId(),
-                                      metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+                for i, bead_image in enumerate(bead_images):
+                    bead_image = np.expand_dims(bead_image, axis=(1, 2))
+                    new_image = create_image(conn=connection,
+                                             image_intensities=bead_image,
+                                             image_name=f'{psf_image["image_name"]}_bead-{i:02d}',
+                                             description=f'Image crop with detected bead. Source Image Id:{image.getId()}',
+                                             dataset=dataset,
+                                             source_image_id=image.getId(),
+                                             metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+                    properties[[p['name'] for p in properties].index('bead_image')]['data'][i] = new_image
+                    new_shape = omero.create_shape_point(x_pos=properties[[p['name'] for p in properties].index('x_centroid')]['data'][i] + .5,
+                                                         y_pos=properties[[p['name'] for p in properties].index('y_centroid')]['data'][i] + .5,
+                                                         z_pos=properties[[p['name'] for p in properties].index('z_centroid')]['data'][i],
+                                                         c_pos=0,
+                                                         shape_name=f'{i:02d}',
+                                                         stroke_color=(0, 255, 0, 128),
+                                                         fill_color=(50, 255, 50, 20),
+                                                         stroke_width=2)
+                    new_roi = omero.create_roi(connection, image, [new_shape])
+                    # properties[[p['name'] for p in properties].index('bead_roi')]['data'][i] = new_roi
 
-                save_data_table(conn=connection,
-                                table_name='AnalysisDate_argolight_D_properties',
-                                col_names=[p['name'] for p in properties],
-                                col_descriptions=[p['desc'] for p in properties],
-                                col_data=[p['data'] for p in properties],
-                                omero_obj=image,
-                                namespace=namespace)
-
-                save_data_table(conn=connection,
-                                table_name='AnalysisDate_argolight_D_distances',
-                                col_names=[p['name'] for p in distances],
-                                col_descriptions=[p['desc'] for p in distances],
-                                col_data=[p['data'] for p in distances],
-                                omero_obj=image,
-                                namespace=namespace)
+                if len(properties[0]['data']) > 0:
+                    save_data_table(conn=connection,
+                                    table_name='Analysis_PSF_properties',
+                                    col_names=[p['name'] for p in properties],
+                                    col_descriptions=[p['desc'] for p in properties],
+                                    col_data=[p['data'] for p in properties],
+                                    omero_obj=image,
+                                    namespace=namespace)
 
                 save_data_key_values(conn=connection,
                                      key_values=key_values,
                                      omero_obj=image,
                                      namespace=namespace)
 
-                save_spots_point_rois(conn=connection,
-                                      names=[p['name'] for p in properties],
-                                      data=[p['data'] for p in properties],
-                                      image=image)
 
 
 

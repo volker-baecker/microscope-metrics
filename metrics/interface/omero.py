@@ -427,6 +427,12 @@ def _create_table(column_names, columns_descriptions, values, types=None):
         elif v_type == bool:
             args = {'name': cn, 'description': cd, 'values': v}
             columns.append(_create_column(data_type='string', kwargs=args))
+        elif v_type == gw.ImageWrapper or v_type == model.ImageI:
+            args = {'name': cn, 'description': cd, 'values': [img.getId() for img in v]}
+            columns.append(_create_column(data_type='image', kwargs=args))
+        elif v_type == gw.RoiWrapper or v_type == model.RoiI:
+            args = {'name': cn, 'description': cd, 'values': [roi.getId() for roi in v]}
+            columns.append(_create_column(data_type='roi', kwargs=args))
         elif isinstance(v_type, (list, tuple)):  # We are creating array columns
 
             # Verify that every element in the 'array' is the same length and type
@@ -503,7 +509,7 @@ def _rgba_to_int(red, green, blue, alpha=255):
 
 
 def _set_shape_properties(shape, name=None,
-                          fill_color=(10, 10, 10, 255),
+                          fill_color=(10, 10, 10, 10),
                           stroke_color=(255, 255, 255, 255),
                           stroke_width=1, ):
     if name:
@@ -513,7 +519,8 @@ def _set_shape_properties(shape, name=None,
     shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
 
 
-def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None):
+def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None,
+                       stroke_color=(255, 255, 255, 255), fill_color=(10, 10, 10, 20), stroke_width=1):
     point = model.PointI()
     point.x = rtypes.rdouble(x_pos)
     point.y = rtypes.rdouble(y_pos)
@@ -521,7 +528,11 @@ def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None
     point.theT = rtypes.rint(t_pos)
     if c_pos is not None:
         point.theC = rtypes.rint(c_pos)
-    _set_shape_properties(point, name=shape_name)
+    _set_shape_properties(shape=point,
+                          name=shape_name,
+                          stroke_color=stroke_color,
+                          stroke_width=stroke_width,
+                          fill_color=fill_color)
 
     return point
 

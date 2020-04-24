@@ -79,7 +79,9 @@ def run_script_local():
                                 port=PORT,
                                 host=HOST)
 
-    script_params = {'IDs': [1],
+    script_params = {
+                     # 'IDs': [1],
+                     'IDs': [154],
                      'Confirm deletion': True}
 
     try:

@@ -45,11 +45,11 @@ def calculate_nyquist(microscope_type, na, refractive_index, emission_wave, exci
     elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
         nyquist_delta['lateral'] = emission_wave / (4 * refractive_index * sin(alpha))
         nyquist_delta['axial'] = emission_wave / (2 * refractive_index * (1 - cos(alpha)))
-        nyquist_delta['units'] = 'MICROMETER'
+        nyquist_delta['units'] = 'NANOMETER'
     elif microscope_type.lower() in ['confocal']:
         nyquist_delta['lateral'] = tolerance * excitation_wave / (8 * refractive_index * sin(alpha))
         nyquist_delta['axial'] = tolerance * excitation_wave / (4 * refractive_index * (1 - cos(alpha)))
-        nyquist_delta['units'] = 'MICROMETER'
+        nyquist_delta['units'] = 'NANOMETER'
     else:
         module_logger.warning('Could not find microscope type to calculate Nyquist criterion. Falling back into Wide-Field')
         nyquist_delta = calculate_nyquist('wf', na, refractive_index, emission_wave, excitation_wave)
@@ -72,12 +72,12 @@ def calculate_theoretcal_resolution(microscope_type, na, refractive_index, emiss
         theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
         theoretical_res['Rayleigh_lateral'] = .61 * emission_wave / na
         theoretical_res['Rayleigh_axial'] = 2 * emission_wave * refractive_index / na ** 2
-        theoretical_res['units'] = 'MICROMETER'
+        theoretical_res['units'] = 'NANOMETER'
     elif microscope_type.lower() in ['confocal']:
         theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
         theoretical_res['Rayleigh_lateral'] = .4 * emission_wave / na
         theoretical_res['Rayleigh_axial'] = 1.4 * emission_wave * refractive_index / na ** 2
-        theoretical_res['units'] = 'MICROMETER'
+        theoretical_res['units'] = 'NANOMETER'
     else:
         module_logger.warning('Could not find microscope type to calculate theoretical resolution. Falling back into Wide-Field')
         theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave, excitation_wave=excitation_wave)
@@ -169,19 +169,19 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     keep_mask = edge_keep_mask & proximity_keep_mask & intensity_keep_mask
     module_logger.info(f'Beads kept for analysis: {np.sum(keep_mask)}')
 
-    positions = positions_3d[keep_mask,:]
-    pos_edge_disc = positions_3d[np.logical_not(edge_keep_mask),:]
-    pos_proximity_disc = positions_3d[np.logical_not(proximity_keep_mask),:]
-    pos_intensity_disc = positions_3d[np.logical_not(intensity_keep_mask),:]
+    positions = positions_3d[keep_mask, :]
+    pos_edge_disc = positions_3d[np.logical_not(edge_keep_mask), :]
+    pos_proximity_disc = positions_3d[np.logical_not(proximity_keep_mask), :]
+    pos_intensity_disc = positions_3d[np.logical_not(intensity_keep_mask), :]
 
-    bead_iamges = list()
-    for pos in positions_2d:
-        bead_iamges.append(image[:,  \
-                                 (pos[0]-(min_distance//2)):(pos[0]+(min_distance//2)),  \
-                                 (pos[1]-(min_distance//2)):(pos[1]+(min_distance//2))  \
-                                ]
-                          )
-    return bead_iamges, positions, pos_edge_disc, pos_proximity_disc, pos_intensity_disc
+    bead_images = list()
+    for pos in positions:
+        bead_images.append(image[:,
+                                 (pos[1]-(min_distance//2)):(pos[1]+(min_distance//2)),
+                                 (pos[2]-(min_distance//2)):(pos[2]+(min_distance//2))
+                                 ]
+                           )
+    return bead_images, positions, pos_edge_disc, pos_proximity_disc, pos_intensity_disc
 
 
 def analyze_image(image_data, config):
@@ -285,17 +285,17 @@ def analyze_image(image_data, config):
                    },
                   {'name': 'x_fwhm',
                    'desc': 'FWHM in the X axis through the max intensity point of the bead.',
-                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[2]],
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[2].item()],
                    'data': list(),
                    },
                   {'name': 'y_fwhm',
                    'desc': 'FWHM in the Y axis through the max intensity point of the bead.',
-                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[1]],
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[1].item()],
                    'data': list(),
                    },
                   {'name': 'z_fwhm',
                    'desc': 'FWHM in the Z axis through the max intensity point of the bead.',
-                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[0]],
+                   'getter': lambda i, pos, fwhm, bead_image: [fwhm[0].item()],
                    'data': list(),
                    },
                   {'name': 'fwhm_units',
@@ -315,10 +315,16 @@ def analyze_image(image_data, config):
             prop['data'].extend(prop['getter'](i, pos, fwhm, bead_image))
 
     key_values['Nr_of_beads_analyzed'] = positions.shape[0]
-    key_values['Mean_X_FWHM'] = mean(properties[[p['name'] for p in properties].index('x_fwhm')]['data'])
-    key_values['Mean_Y_FWHM'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
-    key_values['Mean_Z_FWHM'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
-    key_values['FWHM_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
+    if positions.shape[0] == 0:
+        key_values['Mean_X_FWHM'] = 'No mean could be calculated'
+        key_values['Mean_Y_FWHM'] = 'No mean could be calculated'
+        key_values['Mean_Z_FWHM'] = 'No mean could be calculated'
+        key_values['FWHM_units'] = 'No mean could be calculated'
+    else:
+        key_values['Mean_X_FWHM'] = mean(properties[[p['name'] for p in properties].index('x_fwhm')]['data'])
+        key_values['Mean_Y_FWHM'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
+        key_values['Mean_Z_FWHM'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
+        key_values['FWHM_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
     key_values['Theoretical_Rayleigh_lateral_resolution'] = theoretical_resolution['Rayleigh_lateral']
     key_values['Theoretical_Rayleigh_axial_resolution'] = theoretical_resolution['Rayleigh_axial']
     key_values['Theoretical_resolution_units'] = theoretical_resolution['units']
