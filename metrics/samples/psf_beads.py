@@ -138,6 +138,7 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     # Find bead centers
     positions_2d = peak_local_max(image=image_mip,
                                   threshold_rel=0.2,
+                                  min_distance=5,
                                   indices=True)
     # Add the mas intensity value in z
     positions_3d = np.insert(positions_2d[:], 0, np.argmax(image[:, positions_2d[:, 0], positions_2d[:, 1]], axis=0), axis=1)
@@ -305,7 +306,47 @@ def analyze_image(image_data, config):
                    },
                   ]
 
-    # TODO: Make table or images with the profiles
+    # creating a table to store the profiles
+    profiles_x = list()
+    profiles_y = list()
+    profiles_z = list()
+    for i, (original_profile, fitted_profile) in enumerate(zip(original_profiles, fitted_profiles)):
+        profiles_x.extend([{'name': f'raw_x_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in original_profile[2]]
+                            },
+                           {'name': f'fitted_x_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in fitted_profile[2]]
+                            }
+                           ]
+                          )
+        profiles_y.extend([{'name': f'raw_y_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in original_profile[1]]
+                            },
+                           {'name': f'fitted_y_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in fitted_profile[1]]
+                            }
+                           ]
+                          )
+        profiles_z.extend([{'name': f'raw_z_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in original_profile[0]]
+                            },
+                           {'name': f'fitted_z_profile_bead-{i:02d}',
+                            'desc': f'Intensity profile along x axis of bead {i:02d}.',
+                            'getter': None,
+                            'data': [p.item() for p in fitted_profile[0]]
+                            }
+                           ]
+                          )
 
     # Populate the data
     key_values['Analysis_date_time'] = str(datetime.datetime.now())
@@ -329,55 +370,16 @@ def analyze_image(image_data, config):
     key_values['Theoretical_Rayleigh_axial_resolution'] = theoretical_resolution['Rayleigh_axial']
     key_values['Theoretical_resolution_units'] = theoretical_resolution['units']
 
-    return bead_images, properties, key_values
-
-
-# _____________________________________
-#
-# ANALYSING LINES PATTERN. PATTERNS XXX
-# Computing resolution
-# _____________________________________
-
-
-def analyze_resolution(image, pixel_size, pixel_units, axis, measured_band=.4, precision=None):
-    profiles, \
-        z_planes, \
-        peak_positions, \
-        peak_heights, \
-        resolution_values, \
-        resolution_indexes, \
-        resolution_method = compute_resolution(image=image,
-                                               axis=axis,
-                                               measured_band=measured_band,
-                                               prominence=.2,
-                                               do_angle_refinement=False)
-    # resolution in native units
-    if precision is not None:
-        resolution_values = [round(x * pixel_size[axis], precision) for x in resolution_values]
-    else:
-        resolution_values = [x * pixel_size[axis] for x in resolution_values]
-
-    key_values = dict()
-
-    key_values['Analysis_date_time'] = str(datetime.datetime.now())
-
-    for c, res in enumerate(resolution_values):
-        key_values[f'ch{c:02d}_{resolution_method}_resolution'] = res.item()
-
-    key_values['resolution_units'] = pixel_units[0]
-    key_values['resolution_axis'] = axis
-    key_values['measured_band'] = measured_band
-
-    for c, indexes in enumerate(resolution_indexes):
-        key_values[f'ch{c:02d}_peak_positions'] = [(peak_positions[c][ind].item(), peak_positions[c][ind + 1].item())
-                                                   for ind in indexes]
-        key_values[f'ch{c:02d}_peak_heights'] = [(peak_heights[c][ind].item(), peak_heights[c][ind + 1].item()) for ind
-                                                 in indexes]
-        key_values[f'ch{c:02d}_focus'] = z_planes[c].item()
-
-    # plot.plot_peaks(profiles, peaks, peak_properties, resolution_values, resolution_indexes)
-
-    return profiles, key_values
+    return \
+        bead_images, \
+        profiles_x, \
+        profiles_y, \
+        profiles_z, \
+        properties, \
+        key_values, \
+        positions_edge_discarded, \
+        positions_proximity_discarded, \
+        positions_intensity_discarded
 
 
 def _fit(profile, peaks_guess, amp=4, lower_amp=2, upper_amp=5, center_tolerance=1):
@@ -401,88 +403,6 @@ def _fit(profile, peaks_guess, amp=4, lower_amp=2, upper_amp=5, center_tolerance
 
     return opt_peaks, opt_amps
 
-
-def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fitting=True, do_angle_refinement=False):
-    """Computes the resolution on a pattern of lines with increasing separation"""
-    # find the most contrasted z-slice
-    z_stdev = np.std(channel, axis=(1, 2))
-    z_focus = np.argmax(z_stdev)
-    focus_slice = channel[z_focus]
-
-    # TODO: verify angle and correct
-    if do_angle_refinement:
-        # Set a precision of 0.1 degree.
-        tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 1800)
-        h, theta, d = hough_line(focus_slice, theta=tested_angles)
-
-    # Cut a band of that found peak
-    # Best we can do now is just to cut a band in the center
-    # We create a profiles along which we average signal
-    axis_len = focus_slice.shape[-axis]
-    weight_profile = np.zeros(axis_len)
-    # Calculates a band of relative width 'image_fraction' to integrate the profile
-    weight_profile[
-    int((axis_len / 2) - (axis_len * measured_band / 2)):int((axis_len / 2) + (axis_len * measured_band / 2))] = 1
-    profile = np.average(focus_slice,
-                         axis=-axis,
-                         weights=weight_profile)
-
-    normalized_profile = (profile - np.min(profile)) / np.ptp(profile)
-
-    # Find peaks: We implement Rayleigh limits that will be refined downstream
-    peak_positions, properties = find_peaks(normalized_profile,
-                                            height=.3,
-                                            distance=2,
-                                            prominence=prominence / 4,
-                                            )
-
-    # From the properties we are interested in teh amplitude
-    # peak_heights = [h for h in properties['peak_heights']]
-    ray_filtered_peak_pos = []
-    ray_filtered_peak_heights = []
-
-    for peak, height, prom in zip(peak_positions, properties['peak_heights'], properties['prominences']):
-        if (prom / height) > prominence:  # This is calculating the prominence in relation to the local intensity
-            ray_filtered_peak_pos.append(peak)
-            ray_filtered_peak_heights.append(height)
-
-    peak_positions = ray_filtered_peak_pos
-    peak_heights = ray_filtered_peak_heights
-
-    if do_fitting:
-        peak_positions, peak_heights = _fit(normalized_profile, peak_positions)
-
-    # Find the closest peaks to return it as a measure of resolution
-    peaks_distances = [abs(a - b) for a, b in zip(peak_positions[0:-2], peak_positions[1:-1])]
-    res = min(peaks_distances)
-    res_indices = [i for i, x in enumerate(peaks_distances) if x == res]
-
-    return normalized_profile, z_focus, peak_positions, peak_heights, res, res_indices
-
-
-def compute_resolution(image, axis, measured_band, prominence=0.1, do_angle_refinement=False):
-    profiles = list()
-    z_planes = list()
-    peaks_positions = list()
-    peaks_heights = list()
-    resolution_values = list()
-    resolution_indexes = list()
-    resolution_method = 'Rayleigh'
-
-    for c in range(image.shape[1]):  # TODO: Deal with Time here
-        prof, zp, pk_pos, pk_heights, res, res_ind = _compute_channel_resolution(channel=np.squeeze(image[:, c, ...]),
-                                                                                 axis=axis,
-                                                                                 prominence=prominence,
-                                                                                 measured_band=measured_band,
-                                                                                 do_angle_refinement=do_angle_refinement)
-        profiles.append(prof)
-        z_planes.append(zp)
-        peaks_positions.append(pk_pos)
-        peaks_heights.append(pk_heights)
-        resolution_values.append(res)
-        resolution_indexes.append(res_ind)
-
-    return profiles, z_planes, peaks_positions, peaks_heights, resolution_values, resolution_indexes, resolution_method
 
 # Calculate 2D FFT
 # slice_2d = raw_img[17, ...].reshape([1, n_channels, x_size, y_size])
