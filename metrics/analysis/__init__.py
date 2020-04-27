@@ -284,6 +284,8 @@ def analyze_dataset(connection, script_params, dataset, config):
                                data=key_values,
                                image=image)
 
+                # TODO: Save the profiles
+
         if al_conf.getboolean('do_horizontal_res'):
             namespace = f'metrics/argolight/horizontal_res/{config["MAIN"]["config_version"]}'
             horizontal_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf['horizontal_res_image_tag'])

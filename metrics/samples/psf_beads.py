@@ -147,10 +147,10 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     module_logger.info(f'Beads found: {nr_beads}')
 
     # Exclude beads too close to the edge
-    edge_keep_mask = (positions_2d[:,0] > min_distance) & \
-                     (positions_2d[:,0] < image_mip.shape[0] - min_distance) & \
-                     (positions_2d[:,1] > min_distance) & \
-                     (positions_2d[:,1] < image_mip.shape[1] - min_distance)
+    edge_keep_mask = (positions_2d[:, 0] > min_distance) & \
+                     (positions_2d[:, 0] < image_mip.shape[0] - min_distance) & \
+                     (positions_2d[:, 1] > min_distance) & \
+                     (positions_2d[:, 1] < image_mip.shape[1] - min_distance)
     module_logger.info(f'Beads too close to the edge: {nr_beads - np.sum(edge_keep_mask)}')
 
     # Exclude beads too close to eachother
@@ -213,9 +213,9 @@ def analyze_image(image_data, config):
                                 excitation_wave=emission_waves[0])
     # TODO: validate units
     # Validating nyquist
-    if pixel_size[1] < nyquist['lateral']:
+    if pixel_size[1] > nyquist['lateral']:
         module_logger.warning('Nyquist criterion is not fulfilled in the lateral direction')
-    if pixel_size[0] < nyquist['axial']:
+    if pixel_size[0] > nyquist['axial']:
         module_logger.warning('Nyquist criterion is not fulfilled in the axial direction')
 
     # Find the beads
