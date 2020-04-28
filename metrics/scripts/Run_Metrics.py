@@ -172,6 +172,7 @@ def run_script():
                                      script_params=script_params,
                                      dataset=dataset,
                                      config=config)
+
         logger.info(f'End time: {datetime.now()}')
 
     finally:
@@ -180,6 +181,6 @@ def run_script():
 
 
 if __name__ == '__main__':
-    # run_script()
-    run_script_local()
+    run_script()
+    # run_script_local()
 

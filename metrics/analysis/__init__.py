@@ -428,5 +428,11 @@ def analyze_dataset(connection, script_params, dataset, config):
                                                                      stroke_width=2))
                 omero.create_roi(connection, image, discarded_shapes)
 
+    if script_params['Comment'] != '':
+        module_logger.info('Adding comment to Dataset.')
+        comment_annotation = omero.create_annotation_comment(connection=connection,
+                                                             comment_string=script_params['Comment'],
+                                                             namespace=namespace)
+        omero.link_annotation(dataset, comment_annotation)
 
     module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')

@@ -47,7 +47,7 @@ def clean_dataset(connection, dataset, namespace_like=None):
 
     # Clean Dataset annotations
     for ann in dataset.listAnnotations():
-        if isinstance(ann, (gateway.MapAnnotationWrapper, gateway.FileAnnotationWrapper)):
+        if isinstance(ann, (gateway.MapAnnotationWrapper, gateway.FileAnnotationWrapper, gateway.CommentAnnotationWrapper)):
             connection.deleteObjects('Annotation', [ann.getId()], wait=True)
 
     # Clean new images tagged as metrics
@@ -80,8 +80,8 @@ def run_script_local():
                                 host=HOST)
 
     script_params = {
-                     # 'IDs': [1],
-                     'IDs': [154],
+                     'IDs': [1],
+                     # 'IDs': [154],
                      'Confirm deletion': True}
 
     try:

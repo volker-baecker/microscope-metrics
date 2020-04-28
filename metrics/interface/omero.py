@@ -321,6 +321,16 @@ def get_tagged_images_in_dataset(dataset, tag_name):
 
 
 # In this section we give some convenience functions to send data back to OMERO #
+def create_annotation_comment(connection, comment_string, namespace=None):
+    if namespace is None:
+        namespace = metadata.NSCLIENTMAPANNOTATION  # This makes the annotation editable in the client
+    comment_ann = gw.CommentAnnotationWrapper(connection)
+    comment_ann.setValue(comment_string)
+    comment_ann.setNs(namespace)
+    comment_ann.save()
+
+    return comment_ann
+
 
 def create_annotation_tag(connection, tag_string):
     tag_ann = gw.TagAnnotationWrapper(connection)
