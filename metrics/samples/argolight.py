@@ -178,6 +178,7 @@ def analyze_spots(image, pixel_size, pixel_size_units, low_corr_factors, high_co
         for prop in properties:
             prop['data'].extend(prop['getter'](ch, ch_spot_prop))
 
+    # TODO: match roi labels with mask labesl
     for ch, chs_dist in enumerate(spots_distances):
         for dists in distances:
             dists['data'].extend(dists['getter'](chs_dist))
