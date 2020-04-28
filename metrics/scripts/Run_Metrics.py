@@ -78,8 +78,8 @@ def run_script_local():
                                 host=HOST)
 
     script_params = {
-                     # 'IDs': [154],
-                     'IDs': [1],
+                     'IDs': [154],
+                     # 'IDs': [1],
                      'Configuration file name': 'monthly_config.ini',
                      'Comment': 'This is a test comment'}
 
