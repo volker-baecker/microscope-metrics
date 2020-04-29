@@ -19,7 +19,7 @@
 
 ------------------------------------------------------------------------------
 
-This script deletes from a list of datasets the data produced by OMERO-metrics.
+This script validates the measurements from a list of datasets.
 
 @author Julio Mateos Langerak
 <a href="mailto:julio.mateos-langerak@igh.cnrs.fr">julio.mateos-langerak@igh.cnrs.fr</a>
@@ -44,35 +44,74 @@ logger.setLevel(logging.DEBUG)
 
 METRICS_TAG_ID = 132  # This has to go into some installation configuration
 
+UNVALIDATED_NAMESPACE_PREFIX = 'metrics/analyzed'
+VALIDATED_NAMESPACE_PREFIX = 'metrics/validated'
 
-def clean_dataset(connection, dataset, namespace_like=None):
-    logger.info(f'Cleaning measurements from Dataset: {dataset.getId()}')
+
+def _replace_namespace(annotation, count):
+    curr_namespace = annotation.getNs()
+    new_namespace = curr_namespace.replace(UNVALIDATED_NAMESPACE_PREFIX, VALIDATED_NAMESPACE_PREFIX, 1)
+    annotation.setNs(new_namespace)
+    annotation.save()
+    return count + 1
+
+
+def validate_dataset(dataset):
+    logger.info(f'Validating measurements from Dataset: {dataset.getId()}')
     logger.info(f'Date and time: {datetime.now()}')
 
-    # Clean Dataset annotations
-    for ann in dataset.listAnnotations():  # TODO: We do not remove original file annotations
-        if isinstance(ann, (gateway.MapAnnotationWrapper, gateway.FileAnnotationWrapper, gateway.CommentAnnotationWrapper)):
-            connection.deleteObjects('Annotation', [ann.getId()], wait=True)
+    changes_count = 0
 
-    # Clean new images tagged as metrics
+    # We are recursively looping through the annotations and images of the dataset, checking namespaces and changing them
+
+    # Dataset power measurement map annotations.
+    # This is a special case as they must be modifiable by the user we cannot assign a metrics namespace
+    # Currently namespace is annotated in the description
+    # TODO: Fix storing laser power measurements without namespace
+    for ann in dataset.listAnnotations():
+        if isinstance(ann, gateway.MapAnnotationWrapper) and ann.getDescription().startswith(UNVALIDATED_NAMESPACE_PREFIX):
+            namespace = ann.getDescription()
+            ann.setNs(namespace.replace(UNVALIDATED_NAMESPACE_PREFIX, VALIDATED_NAMESPACE_PREFIX, 1))
+            ann.setDescription('')
+            changes_count += 1
+
+    # Dataset annotations
+    for ann in dataset.listAnnotations():
+        if isinstance(ann, (gateway.TagAnnotationWrapper,
+                            gateway.MapAnnotationWrapper,
+                            gateway.FileAnnotationWrapper,
+                            gateway.CommentAnnotationWrapper)) and \
+                ann.getNs() is not None and \
+                ann.getNs().startswith(UNVALIDATED_NAMESPACE_PREFIX):
+            changes_count = _replace_namespace(ann, changes_count)
+
+    # TODO: Decide if we are creating a validated tag
+    # # Clean new images tagged as metrics
+    # for image in dataset.listChildren():
+    #     for ann in image.listAnnotations():
+    #         if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_TAG_ID:
+    #             connection.deleteObjects('Image', [image.getId()], deleteAnns=False, deleteChildren=True, wait=True)
+
+    # File and map annotations on rest of images
     for image in dataset.listChildren():
         for ann in image.listAnnotations():
-            if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_TAG_ID:
-                connection.deleteObjects('Image', [image.getId()], deleteAnns=False, deleteChildren=True, wait=True)
+            if isinstance(ann, (gateway.TagAnnotationWrapper,
+                                gateway.MapAnnotationWrapper,
+                                gateway.FileAnnotationWrapper)) and \
+                    ann.getNs() is not None and \
+                    ann.getNs().startswith(UNVALIDATED_NAMESPACE_PREFIX):
+                changes_count = _replace_namespace(ann, changes_count)
 
-    # Clean File and map annotations on rest of images
-    for image in dataset.listChildren():
-        for ann in image.listAnnotations():
-            if isinstance(ann, (gateway.MapAnnotationWrapper, gateway.FileAnnotationWrapper)):
-                connection.deleteObjects('Annotation', [ann.getId()], wait=True)
+    # TODO: Rois are not having a namespace. Is there another possibility to secure them?
+    # # Delete all rois
+    # roi_service = connection.getRoiService()
+    # for image in dataset.listChildren():
+    #     rois = roi_service.findByImage(image.getId(), None)
+    #     rois_ids = [r.getId().getValue() for r in rois.rois]
+    #     if len(rois_ids) > 1:
+    #         connection.deleteObjects('Roi', rois_ids, wait=True)
 
-    # Delete all rois
-    roi_service = connection.getRoiService()
-    for image in dataset.listChildren():
-        rois = roi_service.findByImage(image.getId(), None)
-        rois_ids = [r.getId().getValue() for r in rois.rois]
-        if len(rois_ids) > 1:
-            connection.deleteObjects('Roi', rois_ids, wait=True)
+    logger.info(f'Nr of validated annotations: {changes_count}')
 
 
 def run_script_local():
@@ -86,7 +125,7 @@ def run_script_local():
     script_params = {
                      'IDs': [1],
                      # 'IDs': [154],
-                     'Confirm deletion': True}
+                     'Confirm validation': True}
 
     try:
         conn.connect()
@@ -99,8 +138,7 @@ def run_script_local():
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
         for dataset in datasets:
-            clean_dataset(connection=conn,
-                          dataset=dataset)
+            validate_dataset(dataset=dataset)
     finally:
         conn.close()
 
@@ -124,11 +162,10 @@ def run_script():
             description="List of Dataset IDs").ofType(rlong(0)),
 
         scripts.Bool(
-            'Confirm deletion', optional=False, grouping='1', default=False,
-            description='Confirm that you want to delete metrics measurements.'
+            'Confirm validation', optional=False, grouping='1', default=False,
+            description="Confirm that you want to validate metrics' measurements."
         ),
     )
-    # TODO: Implement a delete validated too?
 
     try:
         script_params = {}
@@ -136,8 +173,8 @@ def run_script():
             if client.getInput(key):
                 script_params[key] = client.getInput(key, unwrap=True)
 
-        if script_params['Confirm deletion']:
-            logger.info(f'Deletion started using parameters: \n{script_params}')
+        if script_params['Confirm validation']:
+            logger.info(f'Validation started using parameters: \n{script_params}')
 
             conn = gateway.BlitzGateway(client_obj=client)
 
@@ -150,11 +187,9 @@ def run_script():
             datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
             for dataset in datasets:
-                logger.info(f'deleting data from Dataset: {dataset.getId()}')
-                clean_dataset(connection=conn,
-                              dataset=dataset)
+                validate_dataset(dataset=dataset)
         else:
-            logger.info('Deletion was not confirmed.')
+            logger.info('Validation was not confirmed.')
 
         logger.info(f'End time: {datetime.now()}')
 
@@ -166,4 +201,3 @@ def run_script():
 if __name__ == '__main__':
     # run_script()
     run_script_local()
-

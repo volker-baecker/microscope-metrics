@@ -358,7 +358,7 @@ def _dict_to_map(dictionary):
     return map_annotation
 
 
-def create_annotation_map(connection, annotation, namespace=None):
+def create_annotation_map(connection, annotation, annotation_name=None, annotation_description=None, namespace=None):
     """Creates a map_annotation for OMERO. It can create a map annotation from a
     dictionary or from a list of 2 elements list.
     """
@@ -373,6 +373,10 @@ def create_annotation_map(connection, annotation, namespace=None):
         raise Exception(f'Could not convert {annotation} to a map_annotation')
 
     map_ann = gw.MapAnnotationWrapper(connection)
+    if annotation_name is not None:
+        map_ann.setName(annotation_name)
+    if annotation_description is not None:
+        map_ann.setDescription(annotation_description)
 
     map_ann.setNs(namespace)
 

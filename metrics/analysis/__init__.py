@@ -7,13 +7,17 @@ from metrics.interface import omero
 from metrics.samples import psf_beads, argolight
 
 from datetime import datetime
-from json import dumps
 
 # import logging
 import logging
 
 # Creating logging services
 module_logger = logging.getLogger('metrics.analysis')
+
+# Namespace constants
+NAMESPACE_PREFIX = 'metrics'
+NAMESPACE_ANALYZED = 'analyzed'
+NAMESPACE_VALIDATED = 'validated'
 
 
 def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
@@ -185,7 +189,7 @@ def create_laser_power_keys(conn, laser_lines, units, dataset, namespace):
 
     map_ann = omero.create_annotation_map(connection=conn,
                                           annotation=key_values,
-                                          namespace=namespace)
+                                          annotation_description=namespace)
     omero.link_annotation(dataset, map_ann)
 
 
@@ -197,7 +201,7 @@ def analyze_dataset(connection, script_params, dataset, config):
     if config.has_section('EXCITATION_POWER'):
         ep_conf = config['EXCITATION_POWER']
         if ep_conf.getboolean('do_laser_power_measurement'):
-            namespace = f'metrics/excitation_power/laser_power_measurement/{config["MAIN"]["config_version"]}'
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/excitation_power/laser_power_measurement/{config["MAIN"]["config_version"]}'
             module_logger.info(f'Running laser power measurements')
             try:
                 laser_lines = ep_conf.getlist('laser_power_measurement_wavelengths')
@@ -214,7 +218,7 @@ def analyze_dataset(connection, script_params, dataset, config):
         module_logger.info(f'Running analysis on Argolight samples')
         al_conf = config['ARGOLIGHT']
         if al_conf.getboolean('do_spots'):
-            namespace = f'metrics/argolight/spots/{config["MAIN"]["config_version"]}'
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/spots/{config["MAIN"]["config_version"]}'
             spots_images = omero.get_tagged_images_in_dataset(dataset, al_conf['spots_image_tag'])
             for image in spots_images:
                 spots_image = get_omero_data(image=image)
@@ -263,7 +267,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                       image=image)
 
         if al_conf.getboolean('do_vertical_res'):
-            namespace = f'metrics/argolight/vertical_res/{config["MAIN"]["config_version"]}'
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/vertical_res/{config["MAIN"]["config_version"]}'
             vertical_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf['vertical_res_image_tag'])
             for image in vertical_res_images:
                 vertical_res_image = get_omero_data(image=image)
@@ -287,7 +291,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                 # TODO: Save the profiles
 
         if al_conf.getboolean('do_horizontal_res'):
-            namespace = f'metrics/argolight/horizontal_res/{config["MAIN"]["config_version"]}'
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/horizontal_res/{config["MAIN"]["config_version"]}'
             horizontal_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf['horizontal_res_image_tag'])
             for image in horizontal_res_images:
                 horizontal_res_image = get_omero_data(image=image)
@@ -312,7 +316,7 @@ def analyze_dataset(connection, script_params, dataset, config):
         module_logger.info(f'Running analysis on PSF beads samples')
         psf_conf = config['PSF_BEADS']
         if psf_conf.getboolean('do_beads'):
-            namespace = f'metrics/psf_beads/beads/{config["MAIN"]["config_version"]}'
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/psf_beads/beads/{config["MAIN"]["config_version"]}'
             psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf['psf_image_tag'])
             for image in psf_images:
                 psf_image = get_omero_data(image=image)
@@ -432,7 +436,7 @@ def analyze_dataset(connection, script_params, dataset, config):
         module_logger.info('Adding comment to Dataset.')
         comment_annotation = omero.create_annotation_comment(connection=connection,
                                                              comment_string=script_params['Comment'],
-                                                             namespace=namespace)
+                                                             namespace=f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/comment/comment/{config["MAIN"]["config_version"]}')
         omero.link_annotation(dataset, comment_annotation)
 
     module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')
