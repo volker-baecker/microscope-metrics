@@ -148,12 +148,14 @@ def run_script():
                 logger.info(f'deleting data from Dataset: {dataset.getId()}')
                 clean_dataset(connection=conn,
                               dataset=dataset)
+        else:
+            logger.info('Deletion was not confirmed.')
 
     finally:
         client.closeSession()
 
 
 if __name__ == '__main__':
-    # run_script()
-    run_script_local()
+    run_script()
+    # run_script_local()
 
