@@ -185,19 +185,19 @@ def _find_beads(image, pixel_size, NA, min_distance=None, sigma=None):  # , low_
     return bead_images, positions, pos_edge_disc, pos_proximity_disc, pos_intensity_disc
 
 
-def analyze_image(image_data, config):
+def analyze_image(image, config):
 
     # Get intensities
-    image = image_data['image_data']
+    image = image['image_data']
 
     # Get some config parameters
-    pixel_size_units = image_data['pixel_units']
-    pixel_size = image_data['pixel_size']
-    na = image_data['lens_na']
-    refractive_index = image_data['refractive_index']
-    magnification = image_data['lens_magnification']
-    excitation_waves = image_data['excitation_waves']
-    emission_waves = image_data['emission_waves']
+    pixel_size_units = image['pixel_size_units']
+    pixel_size = image['pixel_size']
+    na = image['lens_na']
+    refractive_index = image['refractive_index']
+    magnification = image['lens_magnification']
+    excitation_waves = image['excitation_waves']
+    emission_waves = image['emission_waves']
 
     # TODO: Include microscope type into config
     # Get resolution parameters

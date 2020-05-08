@@ -143,7 +143,7 @@ def compute_spots_properties(image, labels, remove_center_cross=False, pixel_siz
     return properties, positions
 
 
-def compute_distances_matrix(positions, sigma, pixel_size=None):
+def compute_distances_matrix(positions, max_distance, pixel_size=None):
     """Calculates Mutual Closest Neighbour distances between all channels and returns the values as
     """
     module_logger.info('Computing distances between spots')
@@ -156,7 +156,7 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
 
     channel_permutations = list(permutations(range(len(positions)), 2))
 
-    if not pixel_size:
+    if not pixel_size:  # TODO: make sure the units are corrected if no pixel size
         pixel_size = np.array((1, 1, 1))
         module_logger.warning('No pixel size specified. Using the unit')
     else:
@@ -174,7 +174,7 @@ def compute_distances_matrix(positions, sigma, pixel_size=None):
                               'labels_of_B': list(),
                               }
         for i, (pos_A, d) in enumerate(zip(positions[a], distances_matrix)):
-            if d.min() < sigma:
+            if d.min() < max_distance:
                 pairwise_distances['coord_of_A'].append(tuple(pos_A))
                 pairwise_distances['coord_of_B'].append(tuple(positions[b][d.argmin()]))
                 pairwise_distances['dist_zxy'].append(tuple(np.subtract(pairwise_distances['coord_of_A'][-1],

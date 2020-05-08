@@ -102,7 +102,7 @@ def get_pixel_size(image, order='ZXY'):
     return pixel_sizes
 
 
-def get_pixel_units(image):
+def get_pixel_size_units(image):
     pixels = image.getPrimaryPixels()
 
     pixel_size_units = (pixels.getPhysicalSizeX().getUnit().name,
@@ -492,17 +492,21 @@ def create_annotation_table(connection, table_name, column_names, column_descrip
     return file_ann
 
 
-def create_roi(connection, image, shapes):
+def create_roi(connection, image, shapes, name=None, description=None):
     """A pass through to link a roi to an image"""
-    return _create_roi(connection, image, shapes)
+    return _create_roi(connection, image, shapes, name, description)
 
 
-def _create_roi(connection, image, shapes):
+def _create_roi(connection, image, shapes, name, description):
     # create an ROI, link it to Image
     # roi = gw.RoiWrapper()
     roi = model.RoiI()  # TODO: work with wrappers
     # use the omero.model.ImageI that underlies the 'image' wrapper
     roi.setImage(image._obj)
+    if name is not None:
+        roi.setName(rtypes.rstring(name))
+    if description is not None:
+        roi.setDescription(rtypes.rstring(name))
     for shape in shapes:
         roi.addShape(shape)
     # Save the ROI (saves any linked shapes too)
@@ -533,17 +537,19 @@ def _set_shape_properties(shape, name=None,
     shape.setStrokeWidth(LengthI(stroke_width, enums.UnitsLength.PIXEL))
 
 
-def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None,
+def create_shape_point(x_pos, y_pos, z_pos=None, c_pos=None, t_pos=None, name=None,
                        stroke_color=(255, 255, 255, 255), fill_color=(10, 10, 10, 20), stroke_width=1):
     point = model.PointI()
     point.x = rtypes.rdouble(x_pos)
     point.y = rtypes.rdouble(y_pos)
-    point.theZ = rtypes.rint(z_pos)
-    point.theT = rtypes.rint(t_pos)
+    if z_pos is not None:
+        point.theZ = rtypes.rint(z_pos)
     if c_pos is not None:
         point.theC = rtypes.rint(c_pos)
+    if t_pos is not None:
+        point.theT = rtypes.rint(t_pos)
     _set_shape_properties(shape=point,
-                          name=shape_name,
+                          name=name,
                           stroke_color=stroke_color,
                           stroke_width=stroke_width,
                           fill_color=fill_color)
@@ -551,8 +557,8 @@ def create_shape_point(x_pos, y_pos, z_pos, c_pos=None, t_pos=0, shape_name=None
     return point
 
 
-def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos, c_pos=None,
-                      line_name=None, stroke_color=(255, 255, 255, 255), stroke_width=1):
+def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, c_pos=None, z_pos=None, t_pos=None,
+                      name=None, stroke_color=(255, 255, 255, 255), stroke_width=1):
     line = model.LineI()
     line.x1 = rtypes.rdouble(x1_pos)
     line.x2 = rtypes.rdouble(x2_pos)
@@ -562,7 +568,7 @@ def create_shape_line(x1_pos, y1_pos, x2_pos, y2_pos, z_pos, t_pos, c_pos=None,
     line.theT = rtypes.rint(t_pos)
     if c_pos is not None:
         line.theC = rtypes.rint(c_pos)
-    _set_shape_properties(line, name=line_name,
+    _set_shape_properties(line, name=name,
                           stroke_color=stroke_color,
                           stroke_width=stroke_width)
     return line

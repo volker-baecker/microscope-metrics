@@ -76,7 +76,7 @@ def get_omero_data(image_id):
     else:
         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
     pixel_size = omero.get_pixel_size(image)
-    pixel_units = omero.get_pixel_units(image)
+    pixel_units = omero.get_pixel_size_units(image)
 
     conn.close()
 

@@ -3,8 +3,9 @@ import numpy as np
 from itertools import product
 from metrics.interface import omero
 
-# import Argolight analysis tools
-from metrics.samples import psf_beads, argolight
+# import Argolight analyses tools
+from metrics.samples import psf_beads
+from metrics.samples.argolight import ArgolightSample
 
 from datetime import datetime
 
@@ -18,6 +19,7 @@ module_logger = logging.getLogger('metrics.analysis')
 NAMESPACE_PREFIX = 'metrics'
 NAMESPACE_ANALYZED = 'analyzed'
 NAMESPACE_VALIDATED = 'validated'
+# TODO: Add a special case editable
 
 
 def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
@@ -43,7 +45,7 @@ def get_omero_data(image):
     else:
         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
     pixel_size = omero.get_pixel_size(image)
-    pixel_units = omero.get_pixel_units(image)
+    pixel_size_units = omero.get_pixel_size_units(image)
 
     try:
         objective_settings = image.getObjectiveSettings()
@@ -70,7 +72,7 @@ def get_omero_data(image):
     return {'image_data': raw_img,
             'image_name': image_name,
             'pixel_size': pixel_size,
-            'pixel_units': pixel_units,
+            'pixel_size_units': pixel_size_units,
             'refractive_index': refractive_index,
             'lens_na': lens_na,
             'lens_magnification': lens_magnification,
@@ -97,6 +99,25 @@ def save_data_key_values(conn, key_values, omero_obj, namespace):
                                           annotation=key_values,
                                           namespace=namespace)
     omero_obj.linkAnnotation(map_ann)
+
+
+def create_roi(conn, shapes, image, name, description):
+    new_shapes = list()
+    type_to_func = {'point': omero.create_shape_point,
+                    'line': omero.create_shape_line,
+                    'rectangle': omero.create_shape_rectangle,
+                    'ellipse': omero.create_shape_ellipse,
+                    'polygon': omero.create_shape_polygon,
+                    'mask': omero.create_shape_mask}
+
+    for shape in shapes:
+        new_shapes.append(type_to_func[shape['type']](**shape['args']))
+
+    omero.create_roi(connection=conn,
+                     image=image,
+                     shapes=new_shapes,
+                     name=name,
+                     description=description)
 
 
 def save_spots_point_rois(conn, names, data, image):
@@ -195,6 +216,8 @@ def create_laser_power_keys(conn, laser_lines, units, dataset, namespace):
 
 def analyze_dataset(connection, script_params, dataset, config):
 
+    # TODO: must note in mapann the analyses that were done
+
     module_logger.info(f'Analyzing data from Dataset: {dataset.getId()}')
     module_logger.info(f'Date and time: {datetime.now()}')
 
@@ -217,54 +240,53 @@ def analyze_dataset(connection, script_params, dataset, config):
     if config.has_section('ARGOLIGHT'):
         module_logger.info(f'Running analysis on Argolight samples')
         al_conf = config['ARGOLIGHT']
+        argolight = ArgolightSample(config=al_conf)
         if al_conf.getboolean('do_spots'):
             namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/spots/{config["MAIN"]["config_version"]}'
             spots_images = omero.get_tagged_images_in_dataset(dataset, al_conf['spots_image_tag'])
             for image in spots_images:
                 spots_image = get_omero_data(image=image)
-                module_logger.info(f'Analyzing spots image...')
-                labels, \
-                    properties, \
-                    distances,  \
-                    key_values = argolight.analyze_spots(image=spots_image['image_data'],
-                                                         pixel_size=spots_image['pixel_size'],
-                                                         pixel_size_units=spots_image['pixel_units'],
-                                                         low_corr_factors=al_conf.getlistfloat('low_threshold_correction_factors'),
-                                                         high_corr_factors=al_conf.getlistfloat('high_threshold_correction_factors'))
-                labels = np.expand_dims(labels, 2)
-                create_image(conn=connection,
-                             image_intensities=labels,
-                             image_name=f'{spots_image["image_name"]}_rois',
-                             description=f'Image with detected spots labels. Image intensities correspond to roi labels.\nSource Image Id:{image.getId()}',
-                             dataset=dataset,
-                             source_image_id=image.getId(),
-                             metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+                out_images, \
+                    out_rois, \
+                    out_tags, \
+                    out_dicts, \
+                    out_tables = argolight.analyze_spots(image=spots_image,
+                                                         config=al_conf)
 
-                save_data_table(conn=connection,
-                                table_name='Analysis_argolight_D_properties',
-                                col_names=[p['name'] for p in properties],
-                                col_descriptions=[p['desc'] for p in properties],
-                                col_data=[p['data'] for p in properties],
-                                omero_obj=image,
-                                namespace=namespace)
+                for out_image in out_images:
+                    create_image(conn=connection,
+                                 image_intensities=out_image['image_data'],
+                                 image_name=out_image['image_name'],
+                                 description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
+                                 dataset=dataset,
+                                 source_image_id=image.getId(),
+                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
-                save_data_table(conn=connection,
-                                table_name='Analysis_argolight_D_distances',
-                                col_names=[p['name'] for p in distances],
-                                col_descriptions=[p['desc'] for p in distances],
-                                col_data=[p['data'] for p in distances],
-                                omero_obj=image,
-                                namespace=namespace)
+                for out_roi in out_rois:
+                    create_roi(conn=connection,
+                               shapes=out_roi['shapes'],
+                               image=image,
+                               name=out_roi['name'],
+                               description=out_roi['desc']
+                               )
 
-                save_data_key_values(conn=connection,
-                                     key_values=key_values,
-                                     omero_obj=image,
-                                     namespace=namespace)
+                for out_tag in out_tags:
+                    pass  # TODO implement interface to save tags
 
-                save_spots_point_rois(conn=connection,
-                                      names=[p['name'] for p in properties],
-                                      data=[p['data'] for p in properties],
-                                      image=image)
+                for out_table_name, out_table in out_tables.items():
+                    save_data_table(conn=connection,
+                                    table_name=out_table_name,
+                                    col_names=[p['name'] for p in out_table],
+                                    col_descriptions=[p['desc'] for p in out_table],
+                                    col_data=[p['data'] for p in out_table],
+                                    omero_obj=image,
+                                    namespace=namespace)
+
+                for out_dict in out_dicts:
+                    save_data_key_values(conn=connection,
+                                         key_values=out_dict,
+                                         omero_obj=image,
+                                         namespace=namespace)
 
         if al_conf.getboolean('do_vertical_res'):
             namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/vertical_res/{config["MAIN"]["config_version"]}'
@@ -272,22 +294,56 @@ def analyze_dataset(connection, script_params, dataset, config):
             for image in vertical_res_images:
                 vertical_res_image = get_omero_data(image=image)
                 module_logger.info(f'Analyzing vertical resolution...')
-                profiles, key_values = argolight.analyze_resolution(image=vertical_res_image['image_data'],
-                                                                    pixel_size=vertical_res_image['pixel_size'],
-                                                                    pixel_units=vertical_res_image['pixel_units'],
-                                                                    axis=1,
-                                                                    measured_band=al_conf.getfloat('res_measurement_band'),
-                                                                    precision=al_conf.getint('res_precision'))
+                out_images, \
+                out_rois, \
+                out_tags, \
+                out_dicts, \
+                out_tables = argolight.analyze_vertical_resolution(image=vertical_res_image,
+                                                                   config=al_conf)
 
-                save_data_key_values(conn=connection,
-                                     key_values=key_values,
-                                     omero_obj=image,
-                                     namespace=namespace)
+                for out_image in out_images:
+                    create_image(conn=connection,
+                                 image_intensities=out_image['image_data'],
+                                 image_name=out_image['image_name'],
+                                 description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
+                                 dataset=dataset,
+                                 source_image_id=image.getId(),
+                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
 
-                save_line_rois(conn=connection,
-                               data=key_values,
-                               image=image)
+                for out_roi in out_rois:
+                    create_roi(conn=connection,
+                               shapes=out_roi['shapes'],
+                               image=image,
+                               name=out_roi['name'],
+                               description=out_roi['desc'])
 
+                for out_tag in out_tags:
+                    pass  # TODO implement interface to save tags
+
+                for out_dict in out_dicts:
+                    save_data_key_values(conn=connection,
+                                         key_values=out_dict,
+                                         omero_obj=image,
+                                         namespace=namespace)
+
+                for out_table_name, out_table in out_tables.items():
+                    save_data_table(conn=connection,
+                                    table_name=out_table_name,
+                                    col_names=[p['name'] for p in out_table],
+                                    col_descriptions=[p['desc'] for p in out_table],
+                                    col_data=[p['data'] for p in out_table],
+                                    omero_obj=image,
+                                    namespace=namespace)
+
+                # save_data_key_values(conn=connection,
+                #                      key_values=key_values,
+                #                      omero_obj=image,
+                #                      namespace=namespace)
+                #
+                # save_line_rois(conn=connection,
+                #                data=key_values,
+                #                image=image)
+                #
                 # TODO: Save the profiles
 
         if al_conf.getboolean('do_horizontal_res'):
@@ -298,7 +354,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                 module_logger.info(f'Analyzing horizontal resolution...')
                 profiles, key_values = argolight.analyze_resolution(image=horizontal_res_image['image_data'],
                                                                     pixel_size=horizontal_res_image['pixel_size'],
-                                                                    pixel_units=horizontal_res_image['pixel_units'],
+                                                                    pixel_size_units=horizontal_res_image['pixel_size_units'],
                                                                     axis=2,
                                                                     measured_band=al_conf.getfloat('res_measurement_band'),
                                                                     precision=al_conf.getint('res_precision'))
@@ -313,9 +369,9 @@ def analyze_dataset(connection, script_params, dataset, config):
                                image=image)
 
     if config.has_section('PSF_BEADS'):
-        module_logger.info(f'Running analysis on PSF beads samples')
         psf_conf = config['PSF_BEADS']
         if psf_conf.getboolean('do_beads'):
+            module_logger.info(f'Running analyses on PSF beads samples')
             namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/psf_beads/beads/{config["MAIN"]["config_version"]}'
             psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf['psf_image_tag'])
             for image in psf_images:
@@ -329,8 +385,8 @@ def analyze_dataset(connection, script_params, dataset, config):
                     key_values,\
                     positions_edge_discarded, \
                     positions_proximity_discarded, \
-                    positions_intensity_discarded = psf_beads.analyze_image(image_data=psf_image,
-                                                                              config=psf_conf)
+                    positions_intensity_discarded = psf_beads.analyze_image(image=psf_image,
+                                                                            config=psf_conf)
 
                 for i, bead_image in enumerate(bead_images):
                     bead_image = np.expand_dims(bead_image, axis=(1, 2))
@@ -432,7 +488,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                                                      stroke_width=2))
                 omero.create_roi(connection, image, discarded_shapes)
 
-    if script_params['Comment'] != '':
+    if script_params['Comment'] != '':  # TODO: This is throuwing an error if no comment
         module_logger.info('Adding comment to Dataset.')
         comment_annotation = omero.create_annotation_comment(connection=connection,
                                                              comment_string=script_params['Comment'],

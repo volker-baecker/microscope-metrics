@@ -114,7 +114,7 @@ def run_script():
 
     client = scripts.client(
         'Run_Metrics.py',
-        """This is the main script of omero.metrics. It will run the analysis on the selected 
+        """This is the main script of omero.metrics. It will run the analyses on the selected 
         dataset. For more information check \n
         http://www.mri.cnrs.fr\n
         Copyright: Write here some copyright info""",  # TODO: copyright info

@@ -102,6 +102,7 @@ def validate_dataset(dataset):
                     ann.getNs().startswith(UNVALIDATED_NAMESPACE_PREFIX):
                 changes_count = _replace_namespace(ann, changes_count)
 
+
     # TODO: Rois are not having a namespace. Is there another possibility to secure them?
     # # Delete all rois
     # roi_service = connection.getRoiService()
