@@ -310,12 +310,12 @@ def get_orphan_images(conn):
     return images
 
 
-def get_tagged_images_in_dataset(dataset, tag_name):
+def get_tagged_images_in_dataset(dataset, tag_id):
     images = list()
     for image in dataset.listChildren():
         for ann in image.listAnnotations():
             if type(ann) == gw.TagAnnotationWrapper:
-                if ann.getValue() == tag_name:
+                if ann.getId() == tag_id:
                     images.append(image)
     return images
 

@@ -4,8 +4,8 @@ from itertools import product
 from metrics.interface import omero
 
 # import Argolight analyses tools
-from metrics.samples import psf_beads
 from metrics.samples.argolight import ArgolightSample
+from metrics.samples.psf_beads import PSFBeadsSample
 
 from datetime import datetime
 
@@ -37,6 +37,7 @@ def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
 
 def get_omero_data(image):
     image_name = image.getName()
+    image_id = image.getId()
     raw_img = omero.get_intensities(image)
     # Images from OMERO come in zctyx dimensions and locally as zcxy.
     # The easiest for the moment is to remove t from the omero image
@@ -71,6 +72,7 @@ def get_omero_data(image):
 
     return {'image_data': raw_img,
             'image_name': image_name,
+            'image_id': image_id,
             'pixel_size': pixel_size,
             'pixel_size_units': pixel_size_units,
             'refractive_index': refractive_index,
@@ -223,7 +225,7 @@ def analyze_dataset(connection, script_params, dataset, config):
 
     if config.has_section('EXCITATION_POWER'):
         ep_conf = config['EXCITATION_POWER']
-        if ep_conf.getboolean('do_laser_power_measurement'):
+        if ep_conf.getboolean('analyze_laser_power_measurement'):
             namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/excitation_power/laser_power_measurement/{config["MAIN"]["config_version"]}'
             module_logger.info(f'Running laser power measurements')
             try:
@@ -241,9 +243,9 @@ def analyze_dataset(connection, script_params, dataset, config):
         module_logger.info(f'Running analysis on Argolight samples')
         al_conf = config['ARGOLIGHT']
         argolight = ArgolightSample(config=al_conf)
-        if al_conf.getboolean('do_spots'):
+        if al_conf.getboolean('analyze_spots'):
             namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/spots/{config["MAIN"]["config_version"]}'
-            spots_images = omero.get_tagged_images_in_dataset(dataset, al_conf['spots_image_tag'])
+            spots_images = omero.get_tagged_images_in_dataset(dataset, al_conf.getint('spots_image_tag_id'))
             for image in spots_images:
                 spots_image = get_omero_data(image=image)
                 out_images, \
@@ -288,18 +290,18 @@ def analyze_dataset(connection, script_params, dataset, config):
                                          omero_obj=image,
                                          namespace=namespace)
 
-        if al_conf.getboolean('do_vertical_res'):
-            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/vertical_res/{config["MAIN"]["config_version"]}'
-            vertical_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf['vertical_res_image_tag'])
+        if al_conf.getboolean('analyze_vertical_resolution'):
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/vertical_resolution/{config["MAIN"]["config_version"]}'
+            vertical_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf.getint('vertical_resolution_image_tag_id'))
             for image in vertical_res_images:
                 vertical_res_image = get_omero_data(image=image)
                 module_logger.info(f'Analyzing vertical resolution...')
                 out_images, \
-                out_rois, \
-                out_tags, \
-                out_dicts, \
-                out_tables = argolight.analyze_vertical_resolution(image=vertical_res_image,
-                                                                   config=al_conf)
+                    out_rois, \
+                    out_tags, \
+                    out_dicts, \
+                    out_tables = argolight.analyze_vertical_resolution(image=vertical_res_image,
+                                                                       config=al_conf)
 
                 for out_image in out_images:
                     create_image(conn=connection,
@@ -335,158 +337,202 @@ def analyze_dataset(connection, script_params, dataset, config):
                                     omero_obj=image,
                                     namespace=namespace)
 
+        if al_conf.getboolean('analyze_horizontal_resolution'):
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/horizontal_resolution/{config["MAIN"]["config_version"]}'
+            horizontal_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf.getint('horizontal_resolution_image_tag_id'))
+            for image in horizontal_res_images:
+                horizontal_res_image = get_omero_data(image=image)
+                module_logger.info(f'Analyzing horizontal resolution...')
+                out_images, \
+                    out_rois, \
+                    out_tags, \
+                    out_dicts, \
+                    out_tables = argolight.analyze_horizontal_resolution(image=horizontal_res_image,
+                                                                         config=al_conf)
+
+                for out_image in out_images:
+                    create_image(conn=connection,
+                                 image_intensities=out_image['image_data'],
+                                 image_name=out_image['image_name'],
+                                 description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
+                                 dataset=dataset,
+                                 source_image_id=image.getId(),
+                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+
+                for out_roi in out_rois:
+                    create_roi(conn=connection,
+                               shapes=out_roi['shapes'],
+                               image=image,
+                               name=out_roi['name'],
+                               description=out_roi['desc'])
+
+                for out_tag in out_tags:
+                    pass  # TODO implement interface to save tags
+
+                for out_dict in out_dicts:
+                    save_data_key_values(conn=connection,
+                                         key_values=out_dict,
+                                         omero_obj=image,
+                                         namespace=namespace)
+
+                for out_table_name, out_table in out_tables.items():
+                    save_data_table(conn=connection,
+                                    table_name=out_table_name,
+                                    col_names=[p['name'] for p in out_table],
+                                    col_descriptions=[p['desc'] for p in out_table],
+                                    col_data=[p['data'] for p in out_table],
+                                    omero_obj=image,
+                                    namespace=namespace)
+
+    if config.has_section('PSF_BEADS'):
+        psf_conf = config['PSF_BEADS']
+        psf_beads = PSFBeadsSample(config=psf_conf)
+        if psf_conf.getboolean('analyze_beads'):
+            module_logger.info(f'Running analyses on PSF beads samples')
+            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/psf_beads/beads/{config["MAIN"]["config_version"]}'
+            psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf.getint('beads_image_tag_id'))
+            for image in psf_images:
+                psf_image = get_omero_data(image=image)
+                module_logger.info(f'Analyzing PSF image: {image.getName()}')
+                out_images, \
+                    out_rois, \
+                    out_tags, \
+                    out_dicts, \
+                    out_tables = psf_beads.analyze_beads(image=psf_image,
+                                                         config=psf_conf)
+                for out_image in out_images:
+                    create_image(conn=connection,
+                                 image_intensities=out_image['image_data'],
+                                 image_name=out_image['image_name'],
+                                 description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
+                                 dataset=dataset,
+                                 source_image_id=image.getId(),
+                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+
+                for out_roi in out_rois:
+                    create_roi(conn=connection,
+                               shapes=out_roi['shapes'],
+                               image=image,
+                               name=out_roi['name'],
+                               description=out_roi['desc'])
+
+                for out_tag in out_tags:
+                    pass  # TODO implement interface to save tags
+
+                for out_dict in out_dicts:
+                    save_data_key_values(conn=connection,
+                                         key_values=out_dict,
+                                         omero_obj=image,
+                                         namespace=namespace)
+
+                for out_table_name, out_table in out_tables.items():
+                    save_data_table(conn=connection,
+                                    table_name=out_table_name,
+                                    col_names=[p['name'] for p in out_table],
+                                    col_descriptions=[p['desc'] for p in out_table],
+                                    col_data=[p['data'] for p in out_table],
+                                    omero_obj=image,
+                                    namespace=namespace)
+                #
+                #
+                # for i, bead_image in enumerate(bead_images):
+                #     new_image = create_image(conn=connection,
+                #                              image_intensities=bead_image,
+                #                              image_name=f'{psf_image["image_name"]}_bead-{i:02d}',
+                #                              description=f'Image crop with detected bead. Source Image Id:{image.getId()}',
+                #                              dataset=dataset,
+                #                              source_image_id=image.getId(),
+                #                              metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
+                #     properties[[p['name'] for p in properties].index('bead_image')]['data'][i] = new_image
+                #     new_shape = omero.create_shape_point(x_pos=properties[[p['name'] for p in properties].index('x_centroid')]['data'][i] + .5,
+                #                                          y_pos=properties[[p['name'] for p in properties].index('y_centroid')]['data'][i] + .5,
+                #                                          z_pos=properties[[p['name'] for p in properties].index('z_centroid')]['data'][i],
+                #                                          c_pos=0,
+                #                                          shape_name=f'{i:02d}',
+                #                                          stroke_color=(0, 255, 0, 128),
+                #                                          fill_color=(50, 255, 50, 20),
+                #                                          stroke_width=2)
+                #     new_roi = omero.create_roi(connection, image, [new_shape])
+                #     # properties[[p['name'] for p in properties].index('bead_roi')]['data'][i] = new_roi
+                #
+                # # Saving properties table
+                # if len(properties[0]['data']) > 0:
+                #     save_data_table(conn=connection,
+                #                     table_name='Analysis_PSF_properties',
+                #                     col_names=[p['name'] for p in properties],
+                #                     col_descriptions=[p['desc'] for p in properties],
+                #                     col_data=[p['data'] for p in properties],
+                #                     omero_obj=image,
+                #                     namespace=namespace)
+                #
+                # # Saving profiles table
+                # if len(profiles_x) > 0:
+                #     save_data_table(conn=connection,
+                #                     table_name='Analysis_PSF_X_profiles',
+                #                     col_names=[p['name'] for p in profiles_x],
+                #                     col_descriptions=[p['desc'] for p in profiles_x],
+                #                     col_data=[p['data'] for p in profiles_x],
+                #                     omero_obj=image,
+                #                     namespace=namespace)
+                #     save_data_table(conn=connection,
+                #                     table_name='Analysis_PSF_Y_profiles',
+                #                     col_names=[p['name'] for p in profiles_y],
+                #                     col_descriptions=[p['desc'] for p in profiles_y],
+                #                     col_data=[p['data'] for p in profiles_y],
+                #                     omero_obj=image,
+                #                     namespace=namespace)
+                #     save_data_table(conn=connection,
+                #                     table_name='Analysis_PSF_Z_profiles',
+                #                     col_names=[p['name'] for p in profiles_z],
+                #                     col_descriptions=[p['desc'] for p in profiles_z],
+                #                     col_data=[p['data'] for p in profiles_z],
+                #                     omero_obj=image,
+                #                     namespace=namespace)
+                #
+                # # Saving key-values
                 # save_data_key_values(conn=connection,
                 #                      key_values=key_values,
                 #                      omero_obj=image,
                 #                      namespace=namespace)
                 #
-                # save_line_rois(conn=connection,
-                #                data=key_values,
-                #                image=image)
+                # # Annotating edge discarded beads
+                # discarded_shapes = list()
+                # for pos in positions_edge_discarded:
+                #     discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
+                #                                                      y_pos=pos[1].item() + .5,
+                #                                                      z_pos=pos[0].item() + .5,
+                #                                                      c_pos=0,
+                #                                                      shape_name='discarded: edge',
+                #                                                      stroke_color=(255, 0, 0, 128),
+                #                                                      fill_color=(255, 100, 100, 50),
+                #                                                      stroke_width=2))
+                # omero.create_roi(connection, image, discarded_shapes)
                 #
-                # TODO: Save the profiles
-
-        if al_conf.getboolean('do_horizontal_res'):
-            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/argolight/horizontal_res/{config["MAIN"]["config_version"]}'
-            horizontal_res_images = omero.get_tagged_images_in_dataset(dataset, al_conf['horizontal_res_image_tag'])
-            for image in horizontal_res_images:
-                horizontal_res_image = get_omero_data(image=image)
-                module_logger.info(f'Analyzing horizontal resolution...')
-                profiles, key_values = argolight.analyze_resolution(image=horizontal_res_image['image_data'],
-                                                                    pixel_size=horizontal_res_image['pixel_size'],
-                                                                    pixel_size_units=horizontal_res_image['pixel_size_units'],
-                                                                    axis=2,
-                                                                    measured_band=al_conf.getfloat('res_measurement_band'),
-                                                                    precision=al_conf.getint('res_precision'))
-
-                save_data_key_values(conn=connection,
-                                     key_values=key_values,
-                                     omero_obj=image,
-                                     namespace=namespace)
-
-                save_line_rois(conn=connection,
-                               data=key_values,
-                               image=image)
-
-    if config.has_section('PSF_BEADS'):
-        psf_conf = config['PSF_BEADS']
-        if psf_conf.getboolean('do_beads'):
-            module_logger.info(f'Running analyses on PSF beads samples')
-            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/psf_beads/beads/{config["MAIN"]["config_version"]}'
-            psf_images = omero.get_tagged_images_in_dataset(dataset, psf_conf['psf_image_tag'])
-            for image in psf_images:
-                psf_image = get_omero_data(image=image)
-                module_logger.info(f'Analyzing PSF image: {image.getName()}')
-                bead_images, \
-                    profiles_x, \
-                    profiles_y, \
-                    profiles_z, \
-                    properties, \
-                    key_values,\
-                    positions_edge_discarded, \
-                    positions_proximity_discarded, \
-                    positions_intensity_discarded = psf_beads.analyze_image(image=psf_image,
-                                                                            config=psf_conf)
-
-                for i, bead_image in enumerate(bead_images):
-                    bead_image = np.expand_dims(bead_image, axis=(1, 2))
-                    new_image = create_image(conn=connection,
-                                             image_intensities=bead_image,
-                                             image_name=f'{psf_image["image_name"]}_bead-{i:02d}',
-                                             description=f'Image crop with detected bead. Source Image Id:{image.getId()}',
-                                             dataset=dataset,
-                                             source_image_id=image.getId(),
-                                             metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))
-                    properties[[p['name'] for p in properties].index('bead_image')]['data'][i] = new_image
-                    new_shape = omero.create_shape_point(x_pos=properties[[p['name'] for p in properties].index('x_centroid')]['data'][i] + .5,
-                                                         y_pos=properties[[p['name'] for p in properties].index('y_centroid')]['data'][i] + .5,
-                                                         z_pos=properties[[p['name'] for p in properties].index('z_centroid')]['data'][i],
-                                                         c_pos=0,
-                                                         shape_name=f'{i:02d}',
-                                                         stroke_color=(0, 255, 0, 128),
-                                                         fill_color=(50, 255, 50, 20),
-                                                         stroke_width=2)
-                    new_roi = omero.create_roi(connection, image, [new_shape])
-                    # properties[[p['name'] for p in properties].index('bead_roi')]['data'][i] = new_roi
-
-                # Saving properties table
-                if len(properties[0]['data']) > 0:
-                    save_data_table(conn=connection,
-                                    table_name='Analysis_PSF_properties',
-                                    col_names=[p['name'] for p in properties],
-                                    col_descriptions=[p['desc'] for p in properties],
-                                    col_data=[p['data'] for p in properties],
-                                    omero_obj=image,
-                                    namespace=namespace)
-
-                # Saving profiles table
-                if len(profiles_x) > 0:
-                    save_data_table(conn=connection,
-                                    table_name='Analysis_PSF_X_profiles',
-                                    col_names=[p['name'] for p in profiles_x],
-                                    col_descriptions=[p['desc'] for p in profiles_x],
-                                    col_data=[p['data'] for p in profiles_x],
-                                    omero_obj=image,
-                                    namespace=namespace)
-                    save_data_table(conn=connection,
-                                    table_name='Analysis_PSF_Y_profiles',
-                                    col_names=[p['name'] for p in profiles_y],
-                                    col_descriptions=[p['desc'] for p in profiles_y],
-                                    col_data=[p['data'] for p in profiles_y],
-                                    omero_obj=image,
-                                    namespace=namespace)
-                    save_data_table(conn=connection,
-                                    table_name='Analysis_PSF_Z_profiles',
-                                    col_names=[p['name'] for p in profiles_z],
-                                    col_descriptions=[p['desc'] for p in profiles_z],
-                                    col_data=[p['data'] for p in profiles_z],
-                                    omero_obj=image,
-                                    namespace=namespace)
-
-                # Saving key-values
-                save_data_key_values(conn=connection,
-                                     key_values=key_values,
-                                     omero_obj=image,
-                                     namespace=namespace)
-
-                # Annotating edge discarded beads
-                discarded_shapes = list()
-                for pos in positions_edge_discarded:
-                    discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
-                                                                     y_pos=pos[1].item() + .5,
-                                                                     z_pos=pos[0].item() + .5,
-                                                                     c_pos=0,
-                                                                     shape_name='discarded: edge',
-                                                                     stroke_color=(255, 0, 0, 128),
-                                                                     fill_color=(255, 100, 100, 50),
-                                                                     stroke_width=2))
-                omero.create_roi(connection, image, discarded_shapes)
-
-                # Annotating proximity discarded beads
-                discarded_shapes = list()
-                for pos in positions_proximity_discarded:
-                    discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
-                                                                     y_pos=pos[1].item() + .5,
-                                                                     z_pos=pos[0].item() + .5,
-                                                                     c_pos=0,
-                                                                     shape_name='discarded: proximity',
-                                                                     stroke_color=(255, 0, 0, 128),
-                                                                     fill_color=(255, 100, 100, 50),
-                                                                     stroke_width=2))
-                omero.create_roi(connection, image, discarded_shapes)
-
-                # Annotating intensity discarded beads
-                discarded_shapes = list()
-                for pos in positions_intensity_discarded:
-                    discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
-                                                                     y_pos=pos[1].item() + .5,
-                                                                     z_pos=pos[0].item() + .5,
-                                                                     c_pos=0,
-                                                                     shape_name='discarded: intensity',
-                                                                     stroke_color=(255, 0, 0, 128),
-                                                                     fill_color=(255, 100, 100, 50),
-                                                                     stroke_width=2))
-                omero.create_roi(connection, image, discarded_shapes)
+                # # Annotating proximity discarded beads
+                # discarded_shapes = list()
+                # for pos in positions_proximity_discarded:
+                #     discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
+                #                                                      y_pos=pos[1].item() + .5,
+                #                                                      z_pos=pos[0].item() + .5,
+                #                                                      c_pos=0,
+                #                                                      shape_name='discarded: proximity',
+                #                                                      stroke_color=(255, 0, 0, 128),
+                #                                                      fill_color=(255, 100, 100, 50),
+                #                                                      stroke_width=2))
+                # omero.create_roi(connection, image, discarded_shapes)
+                #
+                # # Annotating intensity discarded beads
+                # discarded_shapes = list()
+                # for pos in positions_intensity_discarded:
+                #     discarded_shapes.append(omero.create_shape_point(x_pos=pos[2].item() + .5,
+                #                                                      y_pos=pos[1].item() + .5,
+                #                                                      z_pos=pos[0].item() + .5,
+                #                                                      c_pos=0,
+                #                                                      shape_name='discarded: intensity',
+                #                                                      stroke_color=(255, 0, 0, 128),
+                #                                                      fill_color=(255, 100, 100, 50),
+                #                                                      stroke_width=2))
+                # omero.create_roi(connection, image, discarded_shapes)
 
     if script_params['Comment'] != '':  # TODO: This is throuwing an error if no comment
         module_logger.info('Adding comment to Dataset.')

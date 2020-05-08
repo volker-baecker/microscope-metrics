@@ -62,7 +62,7 @@ class Sample:
 
         return out_images, out_tags, out_dicts, out_tables
 
-    def _create_roi(self, shapes, name, description):
+    def _create_roi(self, shapes, name=None, description=None):
         """A helper function to create ROIs"""
         roi = {'name': name,
                'desc': description,

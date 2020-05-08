@@ -435,7 +435,7 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
 
     # Find the closest peaks to return it as a measure of resolution
     peaks_distances = [abs(a - b) for a, b in zip(peak_positions[0:-2], peak_positions[1:-1])]
-    res = min(peaks_distances)
+    res = min(peaks_distances)  # TODO: capture here the case where there are no peaks!
     res_indices = [i for i, x in enumerate(peaks_distances) if x == res]
 
     return normalized_profile, z_focus, peak_positions, peak_heights, res, res_indices
