@@ -148,22 +148,22 @@ class ArgolightAnalyzer(Analyzer):
                        },
                       ]
 
-        distances = [{'name': 'channel_A',
+        distances = [{'name': 'channel_a',
                       'desc': 'Channel A.',
                       'getter': lambda props: [props['channels'][0] for p in props['dist_3d']],
                       'data': list(),
                       },
-                     {'name': 'channel_B',
+                     {'name': 'channel_b',
                       'desc': 'Channel B.',
                       'getter': lambda props: [props['channels'][1] for p in props['dist_3d']],
                       'data': list(),
                       },
-                     {'name': 'ch_A_roi_labels',
+                     {'name': 'ch_a_roi_labels',
                       'desc': 'Labels of the ROIs in channel A.',
                       'getter': lambda props: props['labels_of_A'],
                       'data': list(),
                       },
-                     {'name': 'ch_B_roi_labels',
+                     {'name': 'ch_b_roi_labels',
                       'desc': 'Labels of the ROIs in channel B.',
                       'getter': lambda props: props['labels_of_B'],
                       'data': list(),
@@ -199,26 +199,26 @@ class ArgolightAnalyzer(Analyzer):
         out_rois = list()
 
         # Populate the data
-        key_values['Analysis_date_time'] = str(datetime.datetime.now())
+        key_values['analysis_date_time'] = str(datetime.datetime.now())
 
         for ch, ch_spot_prop in enumerate(spots_properties):
 
-            key_values[f'Nr_of_spots_ch{ch:02d}'] = len(ch_spot_prop)
+            key_values[f'nr_of_spots_ch{ch:02d}'] = len(ch_spot_prop)
 
-            key_values[f'Max_Intensity_ch{ch:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
-            key_values[f'Max_Intensity_Roi_ch{ch:02d}'] = \
+            key_values[f'max_intensity_ch{ch:02d}'] = max(x['integrated_intensity'] for x in ch_spot_prop)
+            key_values[f'max_intensity_roi_ch{ch:02d}'] = \
                 ch_spot_prop[
-                    [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Max_Intensity_ch{ch:02d}'])][
+                    [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'max_intensity_ch{ch:02d}'])][
                     'label']
 
-            key_values[f'Min_Intensity_ch{ch:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
-            key_values[f'Min_Intensity_Roi_ch{ch:02d}'] = \
+            key_values[f'min_intensity_ch{ch:02d}'] = min(x['integrated_intensity'] for x in ch_spot_prop)
+            key_values[f'min_intensity_roi_ch{ch:02d}'] = \
                 ch_spot_prop[
-                    [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'Min_Intensity_ch{ch:02d}'])][
+                    [x['integrated_intensity'] for x in ch_spot_prop].index(key_values[f'min_intensity_ch{ch:02d}'])][
                     'label']
 
-            key_values[f'Min-Max_intensity_ratio_ch{ch:02d}'] = key_values[f'Min_Intensity_ch{ch:02d}'] / key_values[
-                f'Max_Intensity_ch{ch:02d}']
+            key_values[f'min-max_intensity_ratio_ch{ch:02d}'] = key_values[f'min_intensity_ch{ch:02d}'] / key_values[
+                f'max_intensity_ch{ch:02d}']
 
             for prop in properties:
                 prop['data'].extend(prop['getter'](ch, ch_spot_prop))
@@ -242,14 +242,14 @@ class ArgolightAnalyzer(Analyzer):
                 dists['data'].extend(dists['getter'](chs_dist))
 
                 if dists['name'] == 'distance_3d':
-                    key_values[f'Median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+                    key_values[f'median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
                         median([d.item() for d in chs_dist['dist_3d']])
 
                 if dists['name'] == 'distance_z':
-                    key_values[f'Median_z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
+                    key_values[f'median_z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'] = \
                         median([d[0].item() for d in chs_dist['dist_zxy']])
 
-        key_values['Distance_units'] = image['pixel_size_units'][0]
+        key_values['distance_units'] = image['pixel_size_units'][0]
 
         # We need to add a time dimension to the labels image
         labels = np.expand_dims(labels, 2)
@@ -302,7 +302,7 @@ class ArgolightAnalyzer(Analyzer):
 
         key_values = dict()
 
-        key_values['Analysis_date_time'] = str(datetime.datetime.now())
+        key_values['analysis_date_time'] = str(datetime.datetime.now())
 
         for ch, res in enumerate(resolution_values):
             key_values[f'ch{ch:02d}_{resolution_method}_resolution'] = res.item()
@@ -312,11 +312,11 @@ class ArgolightAnalyzer(Analyzer):
         key_values['measured_band'] = config['res_measurement_band']
 
         for ch, indexes in enumerate(resolution_indexes):
-            key_values[f'ch{ch:02d}_peak_positions'] = [(peak_positions[ch][ind].item(), peak_positions[ch][ind + 1].item())
+            key_values[f'peak_positions_ch{ch:02d}'] = [(peak_positions[ch][ind].item(), peak_positions[ch][ind + 1].item())
                                                        for ind in indexes]
-            key_values[f'ch{ch:02d}_peak_heights'] = [(peak_heights[ch][ind].item(), peak_heights[ch][ind + 1].item()) for ind
+            key_values[f'peak_heights_ch{ch:02d}'] = [(peak_heights[ch][ind].item(), peak_heights[ch][ind + 1].item()) for ind
                                                      in indexes]
-            key_values[f'ch{ch:02d}_focus'] = z_planes[ch].item()
+            key_values[f'focus_ch{ch:02d}'] = z_planes[ch].item()
 
         out_images = []
         out_rois = []
@@ -326,7 +326,7 @@ class ArgolightAnalyzer(Analyzer):
         for ch, profile in enumerate(profiles):
             out_tables.update({f'Analysis_argolight_E_ch{ch:02d}': _profile_to_table(profile)})
             shapes = list()
-            for pos in key_values[f'ch{ch:02d}_peak_positions']:
+            for pos in key_values[f'peak_positions_ch{ch:02d}']:
                 for peak in pos:
                     # Measurements are taken at center of pixel so we add .5 pixel to peak positions
                     if axis == 1:  # Y resolution -> horizontal rois
@@ -462,7 +462,7 @@ def _compute_resolution(image, axis, measured_band, prominence, do_angle_refinem
     peaks_heights = list()
     resolution_values = list()
     resolution_indexes = list()
-    resolution_method = 'Rayleigh'
+    resolution_method = 'rayleigh'
 
     for c in range(image.shape[1]):  # TODO: Deal with Time here
         prof, zp, pk_pos, pk_heights, res, res_ind = _compute_channel_resolution(channel=np.squeeze(image[:, c, ...]),

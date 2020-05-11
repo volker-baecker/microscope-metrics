@@ -66,14 +66,14 @@ def calculate_theoretcal_resolution(microscope_type, na, refractive_index, emiss
         module_logger.warning('Microscope type undefined to calculate theoretical resolution. Falling back into Wide-Field')
         theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave, excitation_wave=excitation_wave)
     elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
-        theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
-        theoretical_res['Rayleigh_lateral'] = .61 * emission_wave / na
-        theoretical_res['Rayleigh_axial'] = 2 * emission_wave * refractive_index / na ** 2
+        theoretical_res['fwhm_lateral'] = .353 * emission_wave / na
+        theoretical_res['rayleigh_lateral'] = .61 * emission_wave / na
+        theoretical_res['rayleigh_axial'] = 2 * emission_wave * refractive_index / na ** 2
         theoretical_res['units'] = 'NANOMETER'
     elif microscope_type.lower() in ['confocal']:
-        theoretical_res['FWHM_lateral'] = .353 * emission_wave / na
-        theoretical_res['Rayleigh_lateral'] = .4 * emission_wave / na
-        theoretical_res['Rayleigh_axial'] = 1.4 * emission_wave * refractive_index / na ** 2
+        theoretical_res['fwhm_lateral'] = .353 * emission_wave / na
+        theoretical_res['rayleigh_lateral'] = .4 * emission_wave / na
+        theoretical_res['rayleigh_axial'] = 1.4 * emission_wave * refractive_index / na ** 2
         theoretical_res['units'] = 'NANOMETER'
     else:
         module_logger.warning('Could not find microscope type to calculate theoretical resolution. Falling back into Wide-Field')
@@ -385,7 +385,7 @@ class PSFBeadsAnalyzer(Analyzer):
         out_rois = []
 
         # Populate the data
-        key_values['Analysis_date_time'] = str(datetime.datetime.now())
+        key_values['analysis_date_time'] = str(datetime.datetime.now())
 
         for i, (pos, fwhm, bead_image) in enumerate(zip(positions, fwhm_values, bead_images)):
             for prop in properties:
@@ -408,20 +408,20 @@ class PSFBeadsAnalyzer(Analyzer):
                                                 individual_rois=False,
                                                 stroke_color=(255, 0, 0, 150), fill_color=(255, 50, 50, 20)))
 
-        key_values['Nr_of_beads_analyzed'] = positions.shape[0]
+        key_values['nr_of_beads_analyzed'] = positions.shape[0]
         if positions.shape[0] == 0:
-            key_values['Mean_X_FWHM'] = 'No mean could be calculated'
-            key_values['Mean_Y_FWHM'] = 'No mean could be calculated'
-            key_values['Mean_Z_FWHM'] = 'No mean could be calculated'
-            key_values['FWHM_units'] = 'No mean could be calculated'
+            key_values['mean_x_fwhm'] = 'No mean could be calculated'
+            key_values['mean_y_fwhm'] = 'No mean could be calculated'
+            key_values['mean_z_fwhm'] = 'No mean could be calculated'
+            key_values['fwhm_units'] = 'No mean could be calculated'
         else:
-            key_values['Mean_X_FWHM'] = mean(properties[[p['name'] for p in properties].index('x_fwhm')]['data'])
-            key_values['Mean_Y_FWHM'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
-            key_values['Mean_Z_FWHM'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
-            key_values['FWHM_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
-        key_values['Theoretical_Rayleigh_lateral_resolution'] = theoretical_resolution['Rayleigh_lateral']
-        key_values['Theoretical_Rayleigh_axial_resolution'] = theoretical_resolution['Rayleigh_axial']
-        key_values['Theoretical_resolution_units'] = theoretical_resolution['units']
+            key_values['mean_x_fwhm'] = mean(properties[[p['name'] for p in properties].index('x_fwhm')]['data'])
+            key_values['mean_y_fwhm'] = mean(properties[[p['name'] for p in properties].index('y_fwhm')]['data'])
+            key_values['mean_z_fwhm'] = mean(properties[[p['name'] for p in properties].index('z_fwhm')]['data'])
+            key_values['fwhm_units'] = properties[[p['name'] for p in properties].index('fwhm_units')]['data'][0]
+        key_values['theoretical_rayleigh_lateral_resolution'] = theoretical_resolution['rayleigh_lateral']
+        key_values['theoretical_rayleigh_axial_resolution'] = theoretical_resolution['rayleigh_axial']
+        key_values['theoretical_resolution_units'] = theoretical_resolution['units']
 
         out_tags = list()
         out_dicts = [key_values]

@@ -59,36 +59,36 @@ class Analyzer:
 
     def _verify_limits(self, key_values, config):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the config"""
-        for option in config.options():
+        # config = dict(config.items())
+        for option, limit in config.items():
             # Evaluate upper limits
             if option.endswith('_upper_limit'):
-                key = option.rstrip('_upper_limit')
+                key = option[:-12]
                 value = key_values[key]
-                try:
-                    limit = eval(config.get(option))
-                except NameError:
-                    limit = self._evaluate_limits(key_values, config.get(option))
+                # try:
+                #     limit = eval(limit)
+                # except NameError as e:
+                limit = self._evaluate_limits(key_values, limit)
                 if limit is not None and value >= limit:
-                    key_values[key + '_upper_pass'] = 'No'
+                    key_values[key + '_upper_passed'] = 'No'
                 else:
-                    key_values[key + '_upper_pass'] = 'Yes'
+                    key_values[key + '_upper_passed'] = 'Yes'
 
             # Evaluate lower limits
             if option.endswith('_lower_limit'):
-                key = option.rstrip('_lower_limit')
+                key = option[:-12]
                 value = key_values[key]
-                try:
-                    limit = eval(config.get(option))
-                except NameError:
-                    limit = self._evaluate_limits(key_values, config.get(option))
-                if limit is not None and value > limit:
-                    key_values[key + '_lower_pass'] = 'Yes'
-                else:
+                # try:
+                #     limit = eval(limit)
+                # except NameError:
+                limit = self._evaluate_limits(key_values, limit)
+                if limit is not None and value <= limit:
                     key_values[key + '_lower_pass'] = 'No'
+                else:
+                    key_values[key + '_lower_pass'] = 'Yes'
 
         return key_values
 
-    @staticmethod
     def _evaluate_limits(self, key_values, expression):
         # We keep the evaluation in a separate function to avoid namespace conflict
         locals().update(key_values)
@@ -118,6 +118,7 @@ class Analyzer:
         :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
                          are mapped through
         :param config: a dictionary with the configuration to analyze the image the configuration
+        :param verify_limits: Do a verification of the limits established in teh config file
 
         :returns a list of image objects
                  a list of roi objects
