@@ -11,7 +11,7 @@ from statistics import median
 import datetime
 
 # Import sample superclass
-from metrics.samples.samples import Sample, Configurator
+from metrics.samples.samples import Analyzer, Configurator
 
 # Creating logging services
 import logging
@@ -25,24 +25,23 @@ class ArgolightConfigurator(Configurator):
     - Helps in the generation of config files"""
     CONFIG_SECTION = 'ARGOLIGHT'
     ANALYSES = ['spots', 'vertical_resolution', 'horizontal_resolution']
-    # SAMPLE = ArgolightSample
 
     def __init__(self, config):
         super().__init__(config)
 
 
 @ArgolightConfigurator.register_sample
-class ArgolightSample(Sample):
+class ArgolightAnalyzer(Analyzer):
     """This class handles the Argolight sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""
 
     def __init__(self, config=None):
-        analysis_to_func = {'spots': self.analyze_spots,
-                            'vertical_resolution': self.analyze_vertical_resolution,
-                            'horizontal_resolution': self.analyze_horizontal_resolution}
-        super().__init__(config=config, analysis_to_func=analysis_to_func)
+        image_analysis_to_func = {'spots': self.analyze_spots,
+                                  'vertical_resolution': self.analyze_vertical_resolution,
+                                  'horizontal_resolution': self.analyze_horizontal_resolution}
         self.configurator = ArgolightConfigurator(config)
+        super().__init__(config=config, image_analysis_to_func=image_analysis_to_func)
 
     def analyze_spots(self, image, config):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..

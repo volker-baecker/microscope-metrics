@@ -12,7 +12,7 @@ import datetime
 from math import sin, asin, cos
 
 # Import sample superclass
-from .samples import Sample, Configurator
+from .samples import Analyzer, Configurator
 
 # Creating logging services
 import logging
@@ -106,18 +106,19 @@ class PSFBeadsConfigurator(Configurator):
 
 
 @PSFBeadsConfigurator.register_sample
-class PSFBeadsSample(Sample):
+class PSFBeadsAnalyzer(Analyzer):
     """This class handles a PSF beads sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""
     # TODO: Implemented multichannel
 
     def __init__(self, config=None):
-        analysis_to_func = {'beads': self.analyze_beads}
-        super().__init__(config=config, analysis_to_func=analysis_to_func)
+        image_analysis_to_func = {'beads': self.analyze_beads}
+        self.configurator = PSFBeadsConfigurator(config)
+        super().__init__(config=config, image_analysis_to_func=image_analysis_to_func)
 
-    def _analyze_bead(self, image):
-
+    @staticmethod
+    def _analyze_bead(image):
         # Find the strongest sections to generate profiles
         x_max = np.max(image, axis=(0, 1))
         x_focus = np.argmax(x_max)
@@ -140,10 +141,11 @@ class PSFBeadsSample(Sample):
                (z_fitted_profile, y_fitted_profile, x_fitted_profile), \
                (z_fwhm, y_fwhm, x_fwhm)
 
-    def _find_beads(self, image, pixel_size, NA, min_distance=None, sigma=None):  # , low_corr_factors, high_corr_factors):
+    @staticmethod
+    def _find_beads(image, pixel_size, na, min_distance=None, sigma=None):  # , low_corr_factors, high_corr_factors):
 
         if min_distance is None:
-            min_distance = estimate_min_bead_distance(NA, pixel_size)
+            min_distance = estimate_min_bead_distance(na, pixel_size)
 
         image = np.squeeze(image)
         image_mip = np.max(image, axis=0)
@@ -251,7 +253,7 @@ class PSFBeadsSample(Sample):
             positions_proximity_discarded, \
             positions_intensity_discarded = self._find_beads(image=image['image_data'],
                                                              pixel_size=pixel_size,
-                                                             NA=na,
+                                                             na=na,
                                                              min_distance=config.getint('min_distance', None),
                                                              sigma=config.getint('sigma', None))
 

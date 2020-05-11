@@ -9,16 +9,19 @@ from os import path
 # importlib.resources.contents('metrics.samples')
 # importlib.import_module('.argolight', package='metrics.samples')
 
+# import dataset analysis
+from metrics.samples.dataset import DatasetAnalyzer, DatasetConfigurator
+
 # import samples
-from metrics.samples.argolight import ArgolightSample, ArgolightConfigurator
-from metrics.samples.psf_beads import PSFBeadsSample, PSFBeadsConfigurator
+from metrics.samples.argolight import ArgolightAnalyzer, ArgolightConfigurator
+from metrics.samples.psf_beads import PSFBeadsAnalyzer, PSFBeadsConfigurator
 
 SAMPLE_SECTIONS = [ArgolightConfigurator.CONFIG_SECTION,
                    PSFBeadsConfigurator.CONFIG_SECTION]
 SAMPLE_ANALYSES = [ArgolightConfigurator.ANALYSES,
                    PSFBeadsConfigurator.ANALYSES]
-SAMPLE_HANDLERS = [ArgolightSample,
-                   PSFBeadsSample]
+SAMPLE_HANDLERS = [ArgolightAnalyzer,
+                   PSFBeadsAnalyzer]
 
 
 from datetime import datetime
