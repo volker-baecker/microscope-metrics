@@ -12,7 +12,7 @@ import datetime
 from math import sin, asin, cos
 
 # Import sample superclass
-from .samples import Sample
+from .samples import Sample, Configurator
 
 # Creating logging services
 import logging
@@ -94,6 +94,18 @@ def _fit_gaussian(profile, guess=None):
     return fitted_profile, fwhm
 
 
+class PSFBeadsConfigurator(Configurator):
+    """This class handles the configuration properties of the psf_beads sample
+    - Defines configuration properties
+    - Helps in the generation of config files"""
+    CONFIG_SECTION = 'PSF_BEADS'
+    ANALYSES = ['beads']
+
+    def __init__(self, config):
+        super().__init__(config)
+
+
+@PSFBeadsConfigurator.register_sample
 class PSFBeadsSample(Sample):
     """This class handles a PSF beads sample:
     - Defines the logic of the associated analyses
@@ -101,7 +113,7 @@ class PSFBeadsSample(Sample):
     # TODO: Implemented multichannel
 
     def __init__(self, config=None):
-        analysis_to_func = {'do_beads': self.analyze_beads}
+        analysis_to_func = {'beads': self.analyze_beads}
         super().__init__(config=config, analysis_to_func=analysis_to_func)
 
     def _analyze_bead(self, image):
@@ -160,7 +172,7 @@ class PSFBeadsSample(Sample):
                          (positions_2d[:, 1] < image_mip.shape[1] - min_distance)
         module_logger.info(f'Beads too close to the edge: {nr_beads - np.sum(edge_keep_mask)}')
 
-        # Exclude beads too close to eachother
+        # Exclude beads too close to each other
         proximity_keep_mask = np.ones((nr_beads, nr_beads),dtype=bool)
         for i, pos in enumerate(positions_2d):
             proximity_keep_mask[i] = (abs(positions_2d[:, 0] - pos[0]) > min_distance) |  \
@@ -419,29 +431,7 @@ class PSFBeadsSample(Sample):
                                'Analysis_PSF_Z_profiles': profiles_z,
                                })
 
-        # new_shape = omero.create_shape_point(
-        #     x_pos=properties[[p['name'] for p in properties].index('x_centroid')]['data'][i] + .5,
-        #     y_pos=properties[[p['name'] for p in properties].index('y_centroid')]['data'][i] + .5,
-        #     z_pos=properties[[p['name'] for p in properties].index('z_centroid')]['data'][i],
-        #     c_pos=0,
-        #     shape_name=f'{i:02d}',
-        #     stroke_color=(0, 255, 0, 128),
-        #     fill_color=(50, 255, 50, 20),
-        #     stroke_width=2)
-        # new_roi = omero.create_roi(connection, image, [new_shape])
-
         return out_images, out_rois, out_tags, out_dicts, out_tables
-
-        # return \
-        #     bead_images, \
-        #     profiles_x, \
-        #     profiles_y, \
-        #     profiles_z, \
-        #     properties, \
-        #     key_values, \
-        #     positions_edge_discarded, \
-        #     positions_proximity_discarded, \
-        #     positions_intensity_discarded
 
     def _pos_to_point_rois(self, positions_list, description, individual_rois=True, stroke_color=(255, 255, 255, 255), fill_color=(255, 255, 255, 10)):
         roi_list = list()

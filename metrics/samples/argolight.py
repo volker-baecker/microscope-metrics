@@ -11,7 +11,7 @@ from statistics import median
 import datetime
 
 # Import sample superclass
-from .samples import Sample
+from metrics.samples.samples import Sample, Configurator
 
 # Creating logging services
 import logging
@@ -19,15 +19,30 @@ import logging
 module_logger = logging.getLogger('metrics.samples.argolight')
 
 
+class ArgolightConfigurator(Configurator):
+    """This class handles the configuration properties of the argolighe sample
+    - Defines configuration properties
+    - Helps in the generation of config files"""
+    CONFIG_SECTION = 'ARGOLIGHT'
+    ANALYSES = ['spots', 'vertical_resolution', 'horizontal_resolution']
+    # SAMPLE = ArgolightSample
+
+    def __init__(self, config):
+        super().__init__(config)
+
+
+@ArgolightConfigurator.register_sample
 class ArgolightSample(Sample):
     """This class handles the Argolight sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""
 
     def __init__(self, config=None):
-        analysis_to_func = {'do_spots': self.analyze_spots,
-                            'do_resolution': self.analyze_resolution}
+        analysis_to_func = {'spots': self.analyze_spots,
+                            'vertical_resolution': self.analyze_vertical_resolution,
+                            'horizontal_resolution': self.analyze_horizontal_resolution}
         super().__init__(config=config, analysis_to_func=analysis_to_func)
+        self.configurator = ArgolightConfigurator(config)
 
     def analyze_spots(self, image, config):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
@@ -252,13 +267,13 @@ class ArgolightSample(Sample):
 
     def analyze_vertical_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
-        return self.analyze_resolution(image=image, axis=1, config=config)
+        return self._analyze_resolution(image=image, axis=1, config=config)
 
     def analyze_horizontal_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
-        return self.analyze_resolution(image=image, axis=2, config=config)
+        return self._analyze_resolution(image=image, axis=2, config=config)
 
-    def analyze_resolution(self, image, axis, config):  # axis, measured_band=.4, **kwargs):
+    def _analyze_resolution(self, image, axis, config):  # axis, measured_band=.4, **kwargs):
         """Analyzes 'LINES' pattern from the argolight sample. It computes resolution along a specific axis,..
 
         :param image: image instance

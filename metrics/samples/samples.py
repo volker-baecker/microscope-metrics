@@ -1,5 +1,29 @@
 # Main samples module defining the sample superclass
 
+# class Parameter:
+
+
+class Configurator:
+    """This is a superclass taking care of the configuration of a new sample. Helps generating configuration files and
+    defines configuration parameters necessary for the different analyses.
+    """
+    # The configuration section has to be defined for every subclass
+    CONFIG_SECTION: str = None
+    ANALYSES = list()
+
+    def __init__(self, config):
+        self.config = config
+        # self.validate_config()
+
+    @classmethod
+    def register_sample(cls, sample_class):
+        cls.SAMPLE_CLASS = sample_class
+        return sample_class
+
+    @classmethod
+    def register_analyses(cls):
+        pass
+
 
 class Sample:
     """This is the superclass defining the interface to a sample object. You should subclass this in order to create a
@@ -35,7 +59,6 @@ class Sample:
         :param image: an image object to be analyzed
         :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
                          are mapped through
-
         :param config: a dictionary with the configuration to analyze the image the configuration
 
         :returns a list of image objects
@@ -50,7 +73,7 @@ class Sample:
         out_dicts = list()
         out_tables = dict()
         if isinstance(analyses, str):
-            analyses = list(analyses)
+            analyses = [analyses]
 
         for analysis in analyses:
             images, rois, tags, dicts, tables = self.analysis_to_func[analysis](image, config)
@@ -60,21 +83,25 @@ class Sample:
             out_dicts.extend(dicts)
             out_tables.update(tables)
 
-        return out_images, out_tags, out_dicts, out_tables
+        return out_images, out_rois, out_tags, out_dicts, out_tables
 
-    def _create_roi(self, shapes, name=None, description=None):
+    def get_module(self):
+        return self.__module__
+
+    @staticmethod
+    def _create_roi(shapes, name=None, description=None):
         """A helper function to create ROIs"""
         roi = {'name': name,
                'desc': description,
                'shapes': shapes}
-
         return roi
 
-    def _create_shape(self, shape_type, **kwargs):
+    @staticmethod
+    def _create_shape(shape_type, **kwargs):
+        """A helper function to create roi shapes"""
         if shape_type in ['point', 'line', 'rectangle', 'ellipse', 'polygon']:
             shape = {'type': shape_type,
                      'args': kwargs}
-
             return shape
         else:
-            raise TypeError('Cannot recognize that type of shape')
+            raise ValueError('Cannot recognize that type of shape')
