@@ -259,8 +259,11 @@ def analyze_dataset(connection, script_params, dataset, config):
             handler_instance = handler(config=section_conf)
             for analysis in analyses:
                 if section_conf.getboolean(f'analyze_{analysis}'):
-                    mod_name = path.split(inspect.getmodule(handler).__file__)[-1][:-3]
-                    namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/{mod_name}/{analysis}/{config["MAIN"]["config_version"]}'
+                    namespace = (f'{NAMESPACE_PREFIX}/'
+                                 f'{NAMESPACE_ANALYZED}/'
+                                 f'{handler.get_module()}/'
+                                 f'{analysis}/'
+                                 f'{config["MAIN"]["config_version"]}')
                     images = omero.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
                     for image in images:
                         image_data = get_omero_data(image=image)

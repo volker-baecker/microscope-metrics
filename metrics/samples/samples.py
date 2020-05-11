@@ -38,6 +38,10 @@ class Sample:
         self.config = config
         self.analysis_to_func = analysis_to_func
 
+    @classmethod
+    def get_module(cls):
+        return cls.__module__.split(sep='.')[-1]
+
     def validate_dataset(self):
         """Override this method to integrate all the logic of dataset validation"""
         pass
@@ -84,9 +88,6 @@ class Sample:
             out_tables.update(tables)
 
         return out_images, out_rois, out_tags, out_dicts, out_tables
-
-    def get_module(self):
-        return self.__module__
 
     @staticmethod
     def _create_roi(shapes, name=None, description=None):
