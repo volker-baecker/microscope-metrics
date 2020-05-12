@@ -42,7 +42,7 @@ import logging
 logger = logging.getLogger('metrics')
 logger.setLevel(logging.DEBUG)
 
-METRICS_TAG_ID = 132  # This has to go into some installation configuration
+METRICS_GENERATED_TAG_ID = 1284  # This has to go into some installation configuration
 
 UNVALIDATED_NAMESPACE_PREFIX = 'metrics/analyzed'
 VALIDATED_NAMESPACE_PREFIX = 'metrics/validated'
@@ -89,7 +89,7 @@ def validate_dataset(dataset):
     # # Clean new images tagged as metrics
     # for image in dataset.listChildren():
     #     for ann in image.listAnnotations():
-    #         if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_TAG_ID:
+    #         if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_GENERATED_TAG_ID:
     #             connection.deleteObjects('Image', [image.getId()], deleteAnns=False, deleteChildren=True, wait=True)
 
     # File and map annotations on rest of images

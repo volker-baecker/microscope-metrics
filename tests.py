@@ -250,7 +250,7 @@ def main(run_mode):
         horizontal_res_image = get_local_data(vertical_stripes_image_path)
 
     elif run_mode == 'omero':
-        # spots_image = get_omero_data(spots_image_id)
+        # spots_image = get_image_data(spots_image_id)
         vertical_res_image = get_omero_data(horizontal_stripes_image_id)
         horizontal_res_image = get_omero_data(vertical_stripes_image_id)
 

@@ -57,13 +57,14 @@ class Analyzer:
         """Override this method to integrate all the logic of dataset validation"""
         pass
 
-    def _verify_limits(self, key_values, config):
+    def _verify_limits(self, key_values, config, object_ref):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the config"""
         limits_passed = {'uhl_passed': True,
                          'lhl_passed': True,
                          'usl_passed': True,
                          'lsl_passed': True,
-                         'limits': list()}
+                         'limits': list(),
+                         'sources': list()}
         for option, limit in config.items():
             # Evaluate upper hard limits
             if option.endswith('_uhl'):
@@ -74,6 +75,7 @@ class Analyzer:
                     key_values[key + '_uhl_passed'] = 'No'
                     limits_passed['uhl_passed'] = False
                     limits_passed['limits'].append(option)
+                    limits_passed['sources'].append(object_ref)
                 else:
                     key_values[key + '_uhl_passed'] = 'Yes'
 
@@ -86,6 +88,7 @@ class Analyzer:
                     key_values[key + '_usl_passed'] = 'No'
                     limits_passed['usl_passed'] = False
                     limits_passed['limits'].append(option)
+                    limits_passed['sources'].append(object_ref)
                 else:
                     key_values[key + '_usl_passed'] = 'Yes'
 
@@ -98,6 +101,7 @@ class Analyzer:
                     key_values[key + '_lhl_passed'] = 'No'
                     limits_passed['lhl_passed'] = False
                     limits_passed['limits'].append(option)
+                    limits_passed['sources'].append(object_ref)
                 else:
                     key_values[key + '_lhl_passed'] = 'Yes'
 
@@ -110,6 +114,7 @@ class Analyzer:
                     key_values[key + '_lsl_passed'] = 'No'
                     limits_passed['lsl_passed'] = False
                     limits_passed['limits'].append(option)
+                    limits_passed['sources'].append(object_ref)
                 else:
                     key_values[key + '_lsl_passed'] = 'Yes'
 
@@ -158,7 +163,7 @@ class Analyzer:
             if verify_limits:
                 validated_dicts = []
                 for d in dicts:
-                    validated_dict, passed = self._verify_limits(d, config)
+                    validated_dict, passed = self._verify_limits(d, config, f'Dataset_ID:{dataset.getId()}')
                     validated_dicts.append(validated_dict)
                     limits_passed.append(passed)
                 out_dicts.extend(validated_dicts)
@@ -182,8 +187,8 @@ class Analyzer:
                  a list of tags
                  a list of dicts
                  a dict containing table_names and tables
-                 a list of dicts specifying if soft and hard limits are passed or not. if verify_limits is False, an
-                 empty list is returned
+                 a list of dicts specifying if soft and hard limits are passed or not, which limits are not passed
+                 and the images ids. if verify_limits is False, an empty list is returned
         """
         out_images = list()
         out_rois = list()
@@ -202,7 +207,7 @@ class Analyzer:
             if verify_limits:
                 validated_dicts = []
                 for d in dicts:
-                    validated_dict, passed = self._verify_limits(d, config)
+                    validated_dict, passed = self._verify_limits(d, config, f'Image_ID:{image["image_id"]}')
                     validated_dicts.append(validated_dict)
                     limits_passed.append(passed)
                 out_dicts.extend(validated_dicts)

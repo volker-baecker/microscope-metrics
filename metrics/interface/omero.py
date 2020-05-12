@@ -332,9 +332,16 @@ def create_annotation_comment(connection, comment_string, namespace=None):
     return comment_ann
 
 
-def create_annotation_tag(connection, tag_string):
+def link_annotation_tag(connection, omero_obj, tag_id):
+    tag = connection.getObject('Annotation', tag_id)
+    link_annotation(omero_obj, tag)
+
+
+def create_annotation_tag(connection, tag_string, description=None):
     tag_ann = gw.TagAnnotationWrapper(connection)
     tag_ann.setValue(tag_string)
+    if description is not None:
+        tag_ann.setDescription(description)
     tag_ann.save()
 
     return tag_ann

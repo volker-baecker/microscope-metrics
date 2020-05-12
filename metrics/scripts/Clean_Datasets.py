@@ -42,7 +42,7 @@ import logging
 logger = logging.getLogger('metrics')
 logger.setLevel(logging.DEBUG)
 
-METRICS_TAG_ID = 132  # This has to go into some installation configuration
+METRICS_GENERATED_TAG_ID = 1284  # This has to go into some installation configuration
 
 
 def clean_dataset(connection, dataset, namespace_like=None):
@@ -57,7 +57,7 @@ def clean_dataset(connection, dataset, namespace_like=None):
     # Clean new images tagged as metrics
     for image in dataset.listChildren():
         for ann in image.listAnnotations():
-            if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_TAG_ID:
+            if type(ann) == gateway.TagAnnotationWrapper and ann.getId() == METRICS_GENERATED_TAG_ID:
                 connection.deleteObjects('Image', [image.getId()], deleteAnns=False, deleteChildren=True, wait=True)
 
     # Clean File and map annotations on rest of images
@@ -84,8 +84,8 @@ def run_script_local():
                                 host=HOST)
 
     script_params = {
-                     # 'IDs': [1],
-                     'IDs': [146, 145, 144, 143, 142, 141, 140, 139, 138, 137, 136, 135],
+                     'IDs': [1],
+                     # 'IDs': [146, 145, 144, 143, 142, 141, 140, 139, 138, 137, 136, 135],
                      # 'IDs': [154],
                      'Confirm deletion': True}
 

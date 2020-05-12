@@ -1,12 +1,12 @@
 
 import numpy as np
 from itertools import product
-from metrics.interface import omero
+from metrics.interface import omero as interface
 from datetime import datetime
 import logging
 
-import inspect
-from os import path
+# import inspect
+# from os import path
 # import importlib
 # importlib.resources.contents('metrics.samples')
 # importlib.import_module('.argolight', package='metrics.samples')
@@ -48,18 +48,18 @@ def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
         return metadata_type(name)
 
 
-def get_omero_data(image):
+def get_image_data(image):
     image_name = image.getName()
     image_id = image.getId()
-    raw_img = omero.get_intensities(image)
-    # Images from OMERO come in zctyx dimensions and locally as zcxy.
-    # The easiest for the moment is to remove t from the omero image
+    raw_img = interface.get_intensities(image)
+    # Images from Interface come in zctyx dimensions and locally as zcxy.
+    # The easiest for the moment is to remove t
     if raw_img.shape[2] == 1:
         raw_img = np.squeeze(raw_img, 2)  # TODO: Fix this time dimension.
     else:
         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
-    pixel_size = omero.get_pixel_size(image)
-    pixel_size_units = omero.get_pixel_size_units(image)
+    pixel_size = interface.get_pixel_size(image)
+    pixel_size_units = interface.get_pixel_size_units(image)
 
     try:
         objective_settings = image.getObjectiveSettings()
@@ -96,102 +96,45 @@ def get_omero_data(image):
             }
 
 
-def save_data_table(conn, table_name, col_names, col_descriptions, col_data, omero_obj, namespace):
+def save_data_table(conn, table_name, col_names, col_descriptions, col_data, interface_obj, namespace):
 
-    table_ann = omero.create_annotation_table(connection=conn,
-                                              table_name=table_name,
-                                              column_names=col_names,
-                                              column_descriptions=col_descriptions,
-                                              values=col_data,
+    table_ann = interface.create_annotation_table(connection=conn,
+                                                  table_name=table_name,
+                                                  column_names=col_names,
+                                                  column_descriptions=col_descriptions,
+                                                  values=col_data,
+                                                  namespace=namespace)
+
+    interface_obj.linkAnnotation(table_ann)
+
+
+def save_data_key_values(conn, key_values, interface_obj, namespace, editable=False):
+    map_ann = interface.create_annotation_map(connection=conn,
+                                              annotation=key_values,
                                               namespace=namespace)
-
-    omero_obj.linkAnnotation(table_ann)
-    # omero.link_annotation(omero_obj, table_ann)
-
-
-def save_data_key_values(conn, key_values, omero_obj, namespace, editable=False):
-    map_ann = omero.create_annotation_map(connection=conn,
-                                          annotation=key_values,
-                                          namespace=namespace)
-    omero_obj.linkAnnotation(map_ann)
+    interface_obj.linkAnnotation(map_ann)
 
 
 def create_roi(conn, shapes, image, name, description):
     new_shapes = list()
-    type_to_func = {'point': omero.create_shape_point,
-                    'line': omero.create_shape_line,
-                    'rectangle': omero.create_shape_rectangle,
-                    'ellipse': omero.create_shape_ellipse,
-                    'polygon': omero.create_shape_polygon,
-                    'mask': omero.create_shape_mask}
+    type_to_func = {'point': interface.create_shape_point,
+                    'line': interface.create_shape_line,
+                    'rectangle': interface.create_shape_rectangle,
+                    'ellipse': interface.create_shape_ellipse,
+                    'polygon': interface.create_shape_polygon,
+                    'mask': interface.create_shape_mask}
 
     for shape in shapes:
         new_shapes.append(type_to_func[shape['type']](**shape['args']))
 
-    omero.create_roi(connection=conn,
-                     image=image,
-                     shapes=new_shapes,
-                     name=name,
-                     description=description)
-
-
-def save_spots_point_rois(conn, names, data, image):
-    nb_channels = image.getSizeC()
-    channels_shapes = [[] for x in range(nb_channels)]
-
-    for x, y, z, c, l in zip(data[names.index('x_weighted_centroid')],
-                             data[names.index('y_weighted_centroid')],
-                             data[names.index('z_weighted_centroid')],
-                             data[names.index('channel')],
-                             data[names.index('mask_labels')],
-                             ):
-        channels_shapes[c].append(omero.create_shape_point(x, y, z, c_pos=c, shape_name=f'{l}'))
-
-    for shapes in channels_shapes:
-        omero.create_roi(connection=conn,
+    interface.create_roi(connection=conn,
                          image=image,
-                         shapes=shapes)
+                         shapes=new_shapes,
+                         name=name,
+                         description=description)
 
 
-def save_line_rois(conn, data, image):
-    nb_channels = image.getSizeC()
-
-    for c in range(nb_channels):
-        shapes = list()
-        for l in range(len(data[f'ch{c:02d}_peak_positions'])):
-            for p in range(2):
-                if data['resolution_axis'] == 1:  # Y resolution -> horizontal rois
-                    axis_len = image.getSizeX()
-                    x1_pos = int((axis_len / 2) - (axis_len * data['measured_band'] / 2))
-                    y1_pos = data[f'ch{c:02d}_peak_positions'][l][p]
-                    x2_pos = int((axis_len / 2) + (axis_len * data['measured_band'] / 2))
-                    y2_pos = data[f'ch{c:02d}_peak_positions'][l][p]
-                elif data['resolution_axis'] == 2:  # X resolution -> vertical rois
-                    axis_len = image.getSizeY()
-                    y1_pos = int((axis_len / 2) - (axis_len * data['measured_band'] / 2))
-                    x1_pos = data[f'ch{c:02d}_peak_positions'][l][p]
-                    y2_pos = int((axis_len / 2) + (axis_len * data['measured_band'] / 2))
-                    x2_pos = data[f'ch{c:02d}_peak_positions'][l][p]
-                else:
-                    raise ValueError('Only axis 1 and 2 (X and Y) are supported')
-
-                line = omero.create_shape_line(x1_pos=x1_pos + .5,
-                                               y1_pos=y1_pos + .5,
-                                               x2_pos=x2_pos + .5,
-                                               y2_pos=y2_pos + .5,
-                                               z_pos=data[f'ch{c:02d}_focus'],
-                                               t_pos=0,
-                                               c_pos=c,
-                                               line_name=f'ch{c:02d}_{l}_{p}',
-                                               # TODO: add color to line: stroke_color=,
-                                               stroke_width=2
-                                               )
-                shapes.append(line)
-
-        omero.create_roi(connection=conn, image=image, shapes=shapes)
-
-
-def create_image(conn, image_intensities, image_name, description, dataset, source_image_id=None, metrics_tag_id=None):
+def create_image(conn, image_intensities, image_name, description, dataset, source_image_id=None, metrics_generated_tag_id=None):
 
     zct_list = list(product(range(image_intensities.shape[0]),
                             range(image_intensities.shape[1]),
@@ -207,26 +150,14 @@ def create_image(conn, image_intensities, image_name, description, dataset, sour
                                              dataset=dataset,
                                              sourceImageId=source_image_id)
 
-    if metrics_tag_id is not None:
-        tag = conn.getObject('Annotation', metrics_tag_id)
+    if metrics_generated_tag_id is not None:
+        tag = conn.getObject('Annotation', metrics_generated_tag_id)
         if tag is None:
             module_logger.warning('Metrics tag is not found. New images will not be tagged. Verify metrics tag existence and id.')
         else:
             new_image.linkAnnotation(tag)
 
     return new_image
-
-
-def create_laser_power_keys(conn, laser_lines, units, dataset, namespace):
-    # TODO: Move this function somewhere else
-    key_values = {str(k): '' for k in laser_lines}
-    key_values['date'] = datetime.now().strftime("%Y-%m-%d")
-    key_values['power_units'] = units
-
-    map_ann = omero.create_annotation_map(connection=conn,
-                                          annotation=key_values,
-                                          annotation_description=namespace)
-    omero.link_annotation(dataset, map_ann)
 
 
 def analyze_dataset(connection, script_params, dataset, config):
@@ -240,7 +171,8 @@ def analyze_dataset(connection, script_params, dataset, config):
                              'lhl_passed': True,
                              'usl_passed': True,
                              'lsl_passed': True,
-                             'limits': list()}
+                             'limits': list(),
+                             'sources': list()}
 
     for section, analyses, handler in zip(SAMPLE_SECTIONS, SAMPLE_ANALYSES, SAMPLE_HANDLERS):
         if config.has_section(section):
@@ -254,9 +186,9 @@ def analyze_dataset(connection, script_params, dataset, config):
                                  f'{handler.get_module()}/'
                                  f'{analysis}/'
                                  f'{config["MAIN"]["config_version"]}')
-                    images = omero.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
+                    images = interface.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
                     for image in images:
-                        image_data = get_omero_data(image=image)
+                        image_data = get_image_data(image=image)
                         out_images,         \
                             out_rois,       \
                             out_tags,       \
@@ -273,7 +205,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                          description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
                                          dataset=dataset,
                                          source_image_id=image.getId(),
-                                         metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))  # TODO: Must go into metrics config
+                                         metrics_generated_tag_id=config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics config
 
                         for out_roi in out_rois:
                             create_roi(conn=connection,
@@ -292,13 +224,13 @@ def analyze_dataset(connection, script_params, dataset, config):
                                             col_names=[p['name'] for p in out_table],
                                             col_descriptions=[p['desc'] for p in out_table],
                                             col_data=[p['data'] for p in out_table],
-                                            omero_obj=image,
+                                            interface_obj=image,
                                             namespace=namespace)
 
                         for out_dict in out_dicts:
                             save_data_key_values(conn=connection,
                                                  key_values=out_dict,
-                                                 omero_obj=image,
+                                                 interface_obj=image,
                                                  namespace=namespace)
 
                         for ilp in image_limits_passed:
@@ -328,7 +260,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                     out_dicts,      \
                     out_editables,  \
                     out_tables,     \
-                    image_limits_passed = ds_handler_instance.analyze_dataset(dataset='_',  # Nor really used
+                    image_limits_passed = ds_handler_instance.analyze_dataset(dataset=dataset,
                                                                               analyses=dataset_analysis,
                                                                               config=ds_conf)
                 for out_image in out_images:
@@ -337,7 +269,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                  image_name=out_image['image_name'],
                                  description=out_image["image_desc"],
                                  dataset=dataset,
-                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))  # TODO: Must go into metrics config
+                                 metrics_generated_tag_id=config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics config
 
                 for out_tag in out_tags:
                     pass  # TODO implement interface to save tags
@@ -348,7 +280,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                     col_names=[p['name'] for p in out_table],
                                     col_descriptions=[p['desc'] for p in out_table],
                                     col_data=[p['data'] for p in out_table],
-                                    omero_obj=dataset,
+                                    interface_obj=dataset,
                                     namespace=namespace)
 
                 for out_dict, out_editable in zip(out_dicts, out_editables):
@@ -358,7 +290,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                         tmp_namespace = namespace
                     save_data_key_values(conn=connection,
                                          key_values=out_dict,
-                                         omero_obj=dataset,
+                                         interface_obj=dataset,
                                          namespace=tmp_namespace)
 
                 for ilp in image_limits_passed:
@@ -368,30 +300,44 @@ def analyze_dataset(connection, script_params, dataset, config):
                         elif type(v) is list:
                             dataset_limits_passed[k].extend(v)
 
-    # Save final dataset limits passed tests
+    # Save final dataset limits passed tests and corresponding tags
     namespace = (f'{NAMESPACE_PREFIX}/'
                  f'{NAMESPACE_ANALYZED}/'
                  'dataset/'
                  'limits_verification/'
                  f'{config["MAIN"]["config_version"]}')
 
-    dataset_limits_passed['limits'] = list(dict.fromkeys(dataset_limits_passed['limits']))  # Remove duplicates
+    # dataset_limits_passed['limits'] = list(dict.fromkeys(dataset_limits_passed['limits']))  # Remove duplicates
+
+    if dataset_limits_passed['uhl_passed'] and dataset_limits_passed['lhl_passed']:  # Hard limits passed
+        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('passed_hard_limits_tag_id'))
+    else:
+        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('not_passed_hard_limits_tag_id'))
+
+    if dataset_limits_passed['usl_passed'] and dataset_limits_passed['lsl_passed']:  # Soft limits passed
+        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('passed_soft_limits_tag_id'))
+    else:
+        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('not_passed_soft_limits_tag_id'))
+
     save_data_key_values(conn=connection,
                          key_values=dataset_limits_passed,
-                         omero_obj=dataset,
+                         interface_obj=dataset,
                          namespace=namespace)
 
-    if script_params['Comment'] != '':  # TODO: This is throwing an error if no comment
-        module_logger.info('Adding comment to Dataset.')
-        namespace = (f'{NAMESPACE_PREFIX}/'
-                     f'{NAMESPACE_ANALYZED}/'
-                     'comment/'
-                     'comment/'
-                     f'{config["MAIN"]["config_version"]}')
+    try:
+        if script_params['Comment'] != '':  # TODO: This is throwing an error if no comment
+            module_logger.info('Adding comment to Dataset.')
+            namespace = (f'{NAMESPACE_PREFIX}/'
+                         f'{NAMESPACE_ANALYZED}/'
+                         'comment/'
+                         'comment/'
+                         f'{config["MAIN"]["config_version"]}')
 
-        comment_annotation = omero.create_annotation_comment(connection=connection,
-                                                             comment_string=script_params['Comment'],
-                                                             namespace=namespace)
-        omero.link_annotation(dataset, comment_annotation)
+            comment_annotation = interface.create_annotation_comment(connection=connection,
+                                                                     comment_string=script_params['Comment'],
+                                                                     namespace=namespace)
+            interface.link_annotation(dataset, comment_annotation)
+    except KeyError:
+        module_logger.info('No comments added')
 
     module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')
