@@ -66,6 +66,7 @@ class DatasetAnalyzer(Analyzer):
         out_rois = []
         out_tags = []
         out_dicts = [key_values]
+        out_editables = [True]
         out_tables = []
 
-        return out_images, out_rois, out_tags, out_dicts, out_tables
+        return out_images, out_rois, out_tags, out_dicts, out_editables, out_tables

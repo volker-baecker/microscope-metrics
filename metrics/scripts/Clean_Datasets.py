@@ -84,7 +84,8 @@ def run_script_local():
                                 host=HOST)
 
     script_params = {
-                     'IDs': [1],
+                     # 'IDs': [1],
+                     'IDs': [146, 145, 144, 143, 142, 141, 140, 139, 138, 137, 136, 135],
                      # 'IDs': [154],
                      'Confirm deletion': True}
 

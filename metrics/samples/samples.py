@@ -59,37 +59,63 @@ class Analyzer:
 
     def _verify_limits(self, key_values, config):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the config"""
-        # config = dict(config.items())
+        limits_passed = {'uhl_passed': True,
+                         'lhl_passed': True,
+                         'usl_passed': True,
+                         'lsl_passed': True,
+                         'limits': list()}
         for option, limit in config.items():
-            # Evaluate upper limits
-            if option.endswith('_upper_limit'):
-                key = option[:-12]
+            # Evaluate upper hard limits
+            if option.endswith('_uhl'):
+                key = option[:-4]
                 value = key_values[key]
-                # try:
-                #     limit = eval(limit)
-                # except NameError as e:
-                limit = self._evaluate_limits(key_values, limit)
+                limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value >= limit:
-                    key_values[key + '_upper_passed'] = 'No'
+                    key_values[key + '_uhl_passed'] = 'No'
+                    limits_passed['uhl_passed'] = False
+                    limits_passed['limits'].append(option)
                 else:
-                    key_values[key + '_upper_passed'] = 'Yes'
+                    key_values[key + '_uhl_passed'] = 'Yes'
 
-            # Evaluate lower limits
-            if option.endswith('_lower_limit'):
-                key = option[:-12]
+            # Evaluate upper soft limits
+            elif option.endswith('_usl'):
+                key = option[:-4]
                 value = key_values[key]
-                # try:
-                #     limit = eval(limit)
-                # except NameError:
-                limit = self._evaluate_limits(key_values, limit)
-                if limit is not None and value <= limit:
-                    key_values[key + '_lower_pass'] = 'No'
+                limit = self._evaluate_limit(key_values, limit)
+                if limit is not None and value >= limit:
+                    key_values[key + '_usl_passed'] = 'No'
+                    limits_passed['usl_passed'] = False
+                    limits_passed['limits'].append(option)
                 else:
-                    key_values[key + '_lower_pass'] = 'Yes'
+                    key_values[key + '_usl_passed'] = 'Yes'
 
-        return key_values
+            # Evaluate lower hard limits
+            if option.endswith('_lhl'):
+                key = option[:-4]
+                value = key_values[key]
+                limit = self._evaluate_limit(key_values, limit)
+                if limit is not None and value <= limit:
+                    key_values[key + '_lhl_passed'] = 'No'
+                    limits_passed['lhl_passed'] = False
+                    limits_passed['limits'].append(option)
+                else:
+                    key_values[key + '_lhl_passed'] = 'Yes'
 
-    def _evaluate_limits(self, key_values, expression):
+            # Evaluate lower soft limits
+            if option.endswith('_lsl'):
+                key = option[:-4]
+                value = key_values[key]
+                limit = self._evaluate_limit(key_values, limit)
+                if limit is not None and value <= limit:
+                    key_values[key + '_lsl_passed'] = 'No'
+                    limits_passed['lsl_passed'] = False
+                    limits_passed['limits'].append(option)
+                else:
+                    key_values[key + '_lsl_passed'] = 'Yes'
+
+        return key_values, limits_passed
+
+    def _evaluate_limit(self, key_values, expression):
         # We keep the evaluation in a separate function to avoid namespace conflict
         locals().update(key_values)
         try:
@@ -100,23 +126,54 @@ class Analyzer:
         finally:
             return limit
 
-    def analyze_dataset(self, dataset, config=None):
-        """Override this method to integrate all the logic of the analyses of a dataset according the config settings
+    def analyze_dataset(self, dataset, analyses, config, verify_limits=True):
+        """A passthrough to the different analysis implemented on the sample for a particular dataset.
         :param dataset: a dataset object to be analyzed
-        :param config: the configuration with which this dataset has to be analyzed. If None is provided, the configuration of the sample instance will be used
+        :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
+                         are mapped through self.dataset_analysis_to_func
+        :param config: a dictionary with the configuration to analyze the image the configuration
+        :param verify_limits: Do a verification of the limits established in teh config file
 
-        :returns a list of images
+        :returns a list of image objects
                  a list of tags
                  a list of dicts
+                 a list of bools indicating if dicts should be editable or not
                  a dict containing table_names and tables
+                 a list of dicts specifying if soft and hard limits are passed or not. if verify_limits is False, an
+                 empty list is returned
         """
-        pass
+        out_images = list()
+        out_tags = list()
+        out_dicts = list()
+        out_editables = list()
+        out_tables = dict()
+        limits_passed = list()
+        if isinstance(analyses, str):
+            analyses = [analyses]
+
+        for analysis in analyses:
+            images, rois, tags, dicts, editables, tables = self.dataset_analysis_to_func[analysis](dataset, config)
+            out_images.extend(images)
+            out_tags.extend(tags)
+            if verify_limits:
+                validated_dicts = []
+                for d in dicts:
+                    validated_dict, passed = self._verify_limits(d, config)
+                    validated_dicts.append(validated_dict)
+                    limits_passed.append(passed)
+                out_dicts.extend(validated_dicts)
+            else:
+                out_dicts.extend(dicts)
+            out_editables.extend(editables)
+            out_tables.update(tables)
+
+        return out_images, out_tags, out_dicts, out_editables, out_tables, limits_passed
 
     def analyze_image(self, image, analyses, config, verify_limits=True):
-        """A passthrough to the different analysis implemented on the sample.
+        """A passthrough to the different analysis implemented on the sample for a particular image.
         :param image: an image object to be analyzed
         :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
-                         are mapped through
+                         are mapped through self.image_analysis_to_func
         :param config: a dictionary with the configuration to analyze the image the configuration
         :param verify_limits: Do a verification of the limits established in teh config file
 
@@ -125,12 +182,15 @@ class Analyzer:
                  a list of tags
                  a list of dicts
                  a dict containing table_names and tables
+                 a list of dicts specifying if soft and hard limits are passed or not. if verify_limits is False, an
+                 empty list is returned
         """
         out_images = list()
         out_rois = list()
         out_tags = list()
         out_dicts = list()
         out_tables = dict()
+        limits_passed = list()
         if isinstance(analyses, str):
             analyses = [analyses]
 
@@ -142,13 +202,15 @@ class Analyzer:
             if verify_limits:
                 validated_dicts = []
                 for d in dicts:
-                    validated_dicts.append(self._verify_limits(d, config))
+                    validated_dict, passed = self._verify_limits(d, config)
+                    validated_dicts.append(validated_dict)
+                    limits_passed.append(passed)
                 out_dicts.extend(validated_dicts)
             else:
                 out_dicts.extend(dicts)
             out_tables.update(tables)
 
-        return out_images, out_rois, out_tags, out_dicts, out_tables
+        return out_images, out_rois, out_tags, out_dicts, out_tables, limits_passed
 
     @staticmethod
     def _create_roi(shapes, name=None, description=None):

@@ -2,6 +2,8 @@
 import numpy as np
 from itertools import product
 from metrics.interface import omero
+from datetime import datetime
+import logging
 
 import inspect
 from os import path
@@ -10,24 +12,18 @@ from os import path
 # importlib.import_module('.argolight', package='metrics.samples')
 
 # import dataset analysis
-from metrics.samples.dataset import DatasetAnalyzer, DatasetConfigurator
+from metrics.samples.dataset import DatasetConfigurator
 
 # import samples
-from metrics.samples.argolight import ArgolightAnalyzer, ArgolightConfigurator
-from metrics.samples.psf_beads import PSFBeadsAnalyzer, PSFBeadsConfigurator
+from metrics.samples.argolight import ArgolightConfigurator
+from metrics.samples.psf_beads import PSFBeadsConfigurator
 
-SAMPLE_SECTIONS = [ArgolightConfigurator.CONFIG_SECTION,
-                   PSFBeadsConfigurator.CONFIG_SECTION]
-SAMPLE_ANALYSES = [ArgolightConfigurator.ANALYSES,
-                   PSFBeadsConfigurator.ANALYSES]
-SAMPLE_HANDLERS = [ArgolightAnalyzer,
-                   PSFBeadsAnalyzer]
-
-
-from datetime import datetime
-
-# import logging
-import logging
+SAMPLE_CONFIGURATORS = [ArgolightConfigurator,
+                        PSFBeadsConfigurator]
+# noinspection PyUnresolvedReferences
+SAMPLE_HANDLERS = [c.SAMPLE_CLASS for c in SAMPLE_CONFIGURATORS]
+SAMPLE_SECTIONS = [c.CONFIG_SECTION for c in SAMPLE_CONFIGURATORS]
+SAMPLE_ANALYSES = [c.ANALYSES for c in SAMPLE_CONFIGURATORS]
 
 # Creating logging services
 module_logger = logging.getLogger('metrics.analysis')
@@ -113,7 +109,7 @@ def save_data_table(conn, table_name, col_names, col_descriptions, col_data, ome
     # omero.link_annotation(omero_obj, table_ann)
 
 
-def save_data_key_values(conn, key_values, omero_obj, namespace):
+def save_data_key_values(conn, key_values, omero_obj, namespace, editable=False):
     map_ann = omero.create_annotation_map(connection=conn,
                                           annotation=key_values,
                                           namespace=namespace)
@@ -195,7 +191,7 @@ def save_line_rois(conn, data, image):
         omero.create_roi(connection=conn, image=image, shapes=shapes)
 
 
-def create_image(conn, image_intensities, image_name, description, dataset, source_image_id, metrics_tag_id=None):
+def create_image(conn, image_intensities, image_name, description, dataset, source_image_id=None, metrics_tag_id=None):
 
     zct_list = list(product(range(image_intensities.shape[0]),
                             range(image_intensities.shape[1]),
@@ -239,21 +235,12 @@ def analyze_dataset(connection, script_params, dataset, config):
     module_logger.info(f'Analyzing data from Dataset: {dataset.getId()}')
     module_logger.info(f'Date and time: {datetime.now()}')
 
-    if config.has_section('EXCITATION_POWER'):
-        ep_conf = config['EXCITATION_POWER']
-        if ep_conf.getboolean('analyze_laser_power_measurement'):
-            namespace = f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/excitation_power/laser_power_measurement/{config["MAIN"]["config_version"]}'
-            module_logger.info(f'Running laser power measurements')
-            try:
-                laser_lines = ep_conf.getlist('laser_power_measurement_wavelengths')
-            except KeyError:
-                laser_lines = config['WAVELENGTHS'].getlist('excitation')
-            units = ep_conf['laser_power_measurement_units']
-            create_laser_power_keys(conn=connection,
-                                    laser_lines=laser_lines,
-                                    units=units,
-                                    dataset=dataset,
-                                    namespace=namespace)
+    # This dictionary keeps track if the hard or soft limits are passed or not for the whole dataset
+    dataset_limits_passed = {'uhl_passed': True,
+                             'lhl_passed': True,
+                             'usl_passed': True,
+                             'lsl_passed': True,
+                             'limits': list()}
 
     for section, analyses, handler in zip(SAMPLE_SECTIONS, SAMPLE_ANALYSES, SAMPLE_HANDLERS):
         if config.has_section(section):
@@ -270,13 +257,14 @@ def analyze_dataset(connection, script_params, dataset, config):
                     images = omero.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
                     for image in images:
                         image_data = get_omero_data(image=image)
-                        out_images, \
-                            out_rois, \
-                            out_tags, \
-                            out_dicts, \
-                            out_tables = handler_instance.analyze_image(image=image_data,
-                                                                        analyses=analysis,
-                                                                        config=section_conf)
+                        out_images,         \
+                            out_rois,       \
+                            out_tags,       \
+                            out_dicts,      \
+                            out_tables,     \
+                            image_limits_passed = handler_instance.analyze_image(image=image_data,
+                                                                                 analyses=analysis,
+                                                                                 config=section_conf)
 
                         for out_image in out_images:
                             create_image(conn=connection,
@@ -313,11 +301,97 @@ def analyze_dataset(connection, script_params, dataset, config):
                                                  omero_obj=image,
                                                  namespace=namespace)
 
+                        for ilp in image_limits_passed:
+                            for k, v in ilp.items():
+                                if v is False:
+                                    dataset_limits_passed[k] = False
+                                elif type(v) is list:
+                                    dataset_limits_passed[k].extend(v)
+
+    dataset_section = DatasetConfigurator.CONFIG_SECTION
+    dataset_analyses = DatasetConfigurator.ANALYSES
+    dataset_handler = DatasetConfigurator.SAMPLE_CLASS
+
+    if config.has_section(dataset_section):
+        module_logger.info(f'Running analysis on dataset')
+        ds_conf = config[dataset_section]
+        ds_handler_instance = dataset_handler(config=ds_conf)
+        for dataset_analysis in dataset_analyses:
+            if ds_conf.getboolean(f'analyze_{dataset_analysis}'):
+                namespace = (f'{NAMESPACE_PREFIX}/'
+                             f'{NAMESPACE_ANALYZED}/'
+                             f'{dataset_handler.get_module()}/'
+                             f'{dataset_analysis}/'
+                             f'{config["MAIN"]["config_version"]}')
+                out_images,         \
+                    out_tags,       \
+                    out_dicts,      \
+                    out_editables,  \
+                    out_tables,     \
+                    image_limits_passed = ds_handler_instance.analyze_dataset(dataset='_',  # Nor really used
+                                                                              analyses=dataset_analysis,
+                                                                              config=ds_conf)
+                for out_image in out_images:
+                    create_image(conn=connection,
+                                 image_intensities=out_image['image_data'],
+                                 image_name=out_image['image_name'],
+                                 description=out_image["image_desc"],
+                                 dataset=dataset,
+                                 metrics_tag_id=config['MAIN'].getint('metrics_tag_id'))  # TODO: Must go into metrics config
+
+                for out_tag in out_tags:
+                    pass  # TODO implement interface to save tags
+
+                for out_table_name, out_table in out_tables.items():
+                    save_data_table(conn=connection,
+                                    table_name=out_table_name,
+                                    col_names=[p['name'] for p in out_table],
+                                    col_descriptions=[p['desc'] for p in out_table],
+                                    col_data=[p['data'] for p in out_table],
+                                    omero_obj=dataset,
+                                    namespace=namespace)
+
+                for out_dict, out_editable in zip(out_dicts, out_editables):
+                    if out_editable:
+                        tmp_namespace = None
+                    else:
+                        tmp_namespace = namespace
+                    save_data_key_values(conn=connection,
+                                         key_values=out_dict,
+                                         omero_obj=dataset,
+                                         namespace=tmp_namespace)
+
+                for ilp in image_limits_passed:
+                    for k, v in ilp.items():
+                        if v is False:
+                            dataset_limits_passed[k] = False
+                        elif type(v) is list:
+                            dataset_limits_passed[k].extend(v)
+
+    # Save final dataset limits passed tests
+    namespace = (f'{NAMESPACE_PREFIX}/'
+                 f'{NAMESPACE_ANALYZED}/'
+                 'dataset/'
+                 'limits_verification/'
+                 f'{config["MAIN"]["config_version"]}')
+
+    dataset_limits_passed['limits'] = list(dict.fromkeys(dataset_limits_passed['limits']))  # Remove duplicates
+    save_data_key_values(conn=connection,
+                         key_values=dataset_limits_passed,
+                         omero_obj=dataset,
+                         namespace=namespace)
+
     if script_params['Comment'] != '':  # TODO: This is throwing an error if no comment
         module_logger.info('Adding comment to Dataset.')
+        namespace = (f'{NAMESPACE_PREFIX}/'
+                     f'{NAMESPACE_ANALYZED}/'
+                     'comment/'
+                     'comment/'
+                     f'{config["MAIN"]["config_version"]}')
+
         comment_annotation = omero.create_annotation_comment(connection=connection,
                                                              comment_string=script_params['Comment'],
-                                                             namespace=f'{NAMESPACE_PREFIX}/{NAMESPACE_ANALYZED}/comment/comment/{config["MAIN"]["config_version"]}')
+                                                             namespace=namespace)
         omero.link_annotation(dataset, comment_annotation)
 
     module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')
