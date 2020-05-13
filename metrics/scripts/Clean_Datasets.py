@@ -42,7 +42,8 @@ import logging
 logger = logging.getLogger('metrics')
 logger.setLevel(logging.DEBUG)
 
-METRICS_GENERATED_TAG_ID = 1284  # This has to go into some installation configuration
+METRICS_GENERATED_TAG_ID = 1284
+ALL_METRICS_GENERATED_TAG_IDs = [1284, 1281, 1280, 1283, 1282]
 
 
 def clean_dataset(connection, dataset, namespace_like=None):
@@ -51,8 +52,18 @@ def clean_dataset(connection, dataset, namespace_like=None):
 
     # Clean Dataset annotations
     for ann in dataset.listAnnotations():  # TODO: We do not remove original file annotations
-        if isinstance(ann, (gateway.MapAnnotationWrapper, gateway.FileAnnotationWrapper, gateway.CommentAnnotationWrapper)):
+        if isinstance(ann, (gateway.MapAnnotationWrapper,
+                            gateway.FileAnnotationWrapper,
+                            gateway.CommentAnnotationWrapper)):
             connection.deleteObjects('Annotation', [ann.getId()], wait=True)
+
+    # Unlink Dataset tag annotations
+    links = connection.getAnnotationLinks(parent_type='Dataset', parent_ids=[dataset.getId()], ann_ids=ALL_METRICS_GENERATED_TAG_IDs)
+    link_ids = [link.getId() for link in links]
+    if len(link_ids) > 0:
+        connection.deleteObjects('DatasetAnnotationLink', link_ids, wait=True)
+    else:
+        logger.warning('There were no dataset tags to unlink')
 
     # Clean new images tagged as metrics
     for image in dataset.listChildren():

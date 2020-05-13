@@ -41,9 +41,10 @@ from metrics import analysis
 # import configuration parser
 from metrics.utils.utils import MetricsConfig
 
-# import logging
+# import logging utilities
 import logging
 from datetime import datetime
+from io import StringIO
 
 config_file = 'my_microscope_config.ini'
 
@@ -51,22 +52,24 @@ config_file = 'my_microscope_config.ini'
 logger = logging.getLogger('metrics')
 logger.setLevel(logging.DEBUG)
 
-# # create file handler which logs even debug messages
-# fh = logging.FileHandler('metrics.log')
-# fh.setLevel(logging.ERROR)
+# create a log string to return warnings in teh web interface
+log_string = StringIO()
+string_hdl = logging.StreamHandler(log_string)
+string_hdl.setLevel(logging.WARNING)
+formatter = logging.Formatter('%(asctime)s: %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+# formatter = logging.Formatter('%Y-%m-%d %H:%M:%S - %(levelname)s - %(message)s')
+string_hdl.setFormatter(formatter)
+
 
 # create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-# create formatter and add it to the handlers
+console_hdl = logging.StreamHandler()
+console_hdl.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# fh.setFormatter(formatter)
-ch.setFormatter(formatter)
+console_hdl.setFormatter(formatter)
 
 # add the handlers to the logger
-# logger.addHandler(fh)
-# logger.addHandler(ch)
+logger.addHandler(console_hdl)
+logger.addHandler(string_hdl)
 
 
 def run_script_local():
@@ -103,8 +106,11 @@ def run_script_local():
                                      dataset=dataset,
                                      config=config)
 
+        print(log_string.getvalue())
+
     finally:
         logger.info('Closing connection')
+        log_string.close()
         conn.close()
 
 
@@ -176,7 +182,11 @@ def run_script():
         logger.info(f'End time: {datetime.now()}')
 
     finally:
+        # Outputting log for user
+        client.setOutput("Message", rstring(log_string.getvalue()))
+
         logger.info('Closing connection')
+
         client.closeSession()
 
 
