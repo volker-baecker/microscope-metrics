@@ -7,7 +7,7 @@ from metrics.samples.samples import Analyzer, Configurator
 # Creating logging services
 import logging
 
-module_logger = logging.getLogger('metrics.samples.argolight')
+module_logger = logging.getLogger('metrics.samples.dataset')
 
 
 class DatasetConfigurator(Configurator):
