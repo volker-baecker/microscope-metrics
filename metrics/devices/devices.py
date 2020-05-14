@@ -1,5 +1,7 @@
 from enum import Enum, EnumMeta
 
+from metrics.interface import omero as interface
+
 # Creating logging services
 import logging
 module_logger = logging.getLogger('metrics.devices.devices')
@@ -119,14 +121,14 @@ class Device:
                                             set_func,
                                             values)
 
-    def get_setting(self, name):
+    def get_setting(self, name, *args):
         """Tries to get a specified setting from the following sources by order of preference:
         - Image from the database interface
         - The microscope config linked through the image name
         - Directly in the image name"""
 
         try:
-            return self._settings[name].get()
+            return self._settings[name].get(*args)
         except Exception as err:
             module_logger.error("in get_setting(%s):", name, exc_info=err)
             raise
@@ -197,13 +199,65 @@ class Device:
 
 class Microscope(Device):
     """A superclass for the microscopes. Inherit this class when you create a new type of microscope."""
-    def __init__(self, micr_config, image=None):
-        super.__init__(micr_config)
-        self.add_setting('transform', 'enum',
-                         lambda: CameraDevice.ALLOWED_TRANSFORMS.index(self._transform),
-                         lambda index: self.set_transform(CameraDevice.ALLOWED_TRANSFORMS[index]),
-                         CameraDevice.ALLOWED_TRANSFORMS)
+    def __init__(self, device_config):
+        super.__init__(device_config)
 
+
+class WideFieldMicroscope(Microscope):
+    """A Widefield microscope"""
+    def __init__(self, device_config):
+        super.__init__(device_config)
+
+        self.add_setting('objective_lens_refractive_index', 'float',
+                         get_from_db_func=interface.get_refractive_index,
+                         get_from_conf_func=,
+                         get_from_name_func=,
+                         set_func=None,
+                         values=(1.0, 2.0))
+
+    def _get_objective_nr(self, image):
+        img_name = image.getName()
+        obj_nrs = [i for i, token in enumerate(self.device_config.getlist('OBJECTIVES', 'names')) if token in img_name]
+        if len(obj_nrs) > 1:
+            module_logger.error('More than one reference to an objective lens was found ',
+                                'in the image name. Only hte first one will be considered.')
+        elif len(obj_nrs) == 0:
+            module_logger.error('No references to any objective lens were found in the image name')
+            return None
+        return obj_nrs[0]
+
+    def _get_conf_objective_setting(self, image, option):
+        obj_nr = self._get_objective_nr(image)
+        values = eval(self.device_config.get('OBJECTIVES', option, None))
+        if values is None:
+            return None
+        else:
+            return values[obj_nr]
+
+    def _get_channel_nrs(self, image):
+        img_name = image.getName()
+        ch_nrs = [i for i, token in enumerate(self.device_config.getlist('CHANNELS', 'names')) if token in img_name]
+        if len(ch_nrs) == 0:
+            module_logger.error('No references to any channel was found in the image name')
+            return None
+        return ch_nrs[0]
+
+    def _get_conf_channel_settings(self, image, option):
+        ch_nrs = self._get_channel_nrs(image)
+        values = eval(self.device_config.get('CHANNELS', option, None))
+        if values is None:
+            return None
+        else:
+            return tuple(values)
+
+
+
+# to add to if
+def get_refractive_index(image):
+    objective_settings = image.getObjectiveSettings()
+    return objective_settings.getRefractiveIndex()
+
+    def _get
 
     def _get_metadata_from_name(self, name, token_left, token_right, metadata_type=None):
         start = name.find(token_left)
@@ -217,7 +271,7 @@ class Microscope(Device):
         else:
             return metadata_type(name)
 
-    def get_image_data(image):
+    def get_image_data(self.image):
         image_name = image.getName()
         image_id = image.getId()
         raw_img = interface.get_intensities(image)
