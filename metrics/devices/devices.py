@@ -1,4 +1,6 @@
 from enum import Enum, EnumMeta
+from configparser import NoOptionError
+from collections import Iterable
 
 from metrics.interface import omero as interface
 
@@ -58,18 +60,18 @@ class _Setting:
         return {'type': self.dtype,
                 'values': self.values()}
 
-    def get(self):
+    def get(self, *args):
         """Get a setting"""
         if self._get_from_db is not None:
-            value = self._get_from_db()
+            value = self._get_from_db(*args)
             if value is not None:
                 return value
         if self._get_from_conf is not None:
-            value = self._get_from_conf()
+            value = self._get_from_conf(*args)
             if value is not None:
                 return value
         if self._get_from_name is not None:
-            value = self._get_from_name()
+            value = self._get_from_name(*args)
             if value is not None:
                 return value
         module_logger.warning(f'Device setting could not be retrieved: {self.name}')
@@ -200,122 +202,255 @@ class Device:
 class Microscope(Device):
     """A superclass for the microscopes. Inherit this class when you create a new type of microscope."""
     def __init__(self, device_config):
-        super.__init__(device_config)
+        super().__init__(device_config)
 
-
-class WideFieldMicroscope(Microscope):
-    """A Widefield microscope"""
-    def __init__(self, device_config):
-        super.__init__(device_config)
-
-        self.add_setting('objective_lens_refractive_index', 'float',
-                         get_from_db_func=interface.get_refractive_index,
-                         get_from_conf_func=,
-                         get_from_name_func=,
-                         set_func=None,
-                         values=(1.0, 2.0))
-
-    def _get_objective_nr(self, image):
+    def _get_conf_objective_nr(self, image):
         img_name = image.getName()
         obj_nrs = [i for i, token in enumerate(self.device_config.getlist('OBJECTIVES', 'names')) if token in img_name]
         if len(obj_nrs) > 1:
-            module_logger.error('More than one reference to an objective lens was found ',
-                                'in the image name. Only hte first one will be considered.')
+            module_logger.error('More than one reference to an objective lens was found in the image name. Only the first one will be considered.')
         elif len(obj_nrs) == 0:
-            module_logger.error('No references to any objective lens were found in the image name')
+            module_logger.info('No references to any objective lens were found in the image name')
             return None
         return obj_nrs[0]
 
-    def _get_conf_objective_setting(self, image, option):
-        obj_nr = self._get_objective_nr(image)
-        values = eval(self.device_config.get('OBJECTIVES', option, None))
+    def _get_conf_objective_setting(self, option, image):
+        obj_nr = self._get_conf_objective_nr(image)
+        if obj_nr is None:
+            return None
+        try:
+            values = eval(self.device_config.get('OBJECTIVES', option))
+        except NoOptionError as e:
+            module_logger.error(f'No parameters for {option} have been defined in the device configuration')
+
+        except NameError as e:
+            module_logger.error(f'There was an error reading microscope objectives configuration option: {option}')
+            return None
         if values is None:
+            module_logger.info(f'No information available for {option} in the microscope objectives configuration ')
             return None
         else:
             return values[obj_nr]
 
-    def _get_channel_nrs(self, image):
+    def _get_conf_channel_nrs(self, image):
         img_name = image.getName()
-        ch_nrs = [i for i, token in enumerate(self.device_config.getlist('CHANNELS', 'names')) if token in img_name]
+        ch_nrs = list()
+        token_positions = list()
+        for ch, ch_token in enumerate(self.device_config.getlist('CHANNELS', 'names')):
+            token_pos = img_name.find(ch_token)
+            if token_pos == -1:  # token not in name
+                continue
+            else:
+                token_positions.append(token_pos)
+                ch_nrs.append(ch)
+        # Sort channels according to their position in the name
+        ch_nrs = tuple(ch for _, ch in sorted(zip(token_positions, ch_nrs)))
         if len(ch_nrs) == 0:
-            module_logger.error('No references to any channel was found in the image name')
+            module_logger.info('No references to any channel were found in the image name')
             return None
-        return ch_nrs[0]
+        return ch_nrs
 
-    def _get_conf_channel_settings(self, image, option):
-        ch_nrs = self._get_channel_nrs(image)
-        values = eval(self.device_config.get('CHANNELS', option, None))
+    def _get_conf_channel_settings(self, option, image):
+        ch_nrs = self._get_conf_channel_nrs(image)
+        if ch_nrs is None:
+            return None
+        try:
+            values = eval(self.device_config.get('CHANNELS', option))
+        except NameError as e:
+            module_logger.error(f'There was an error reading microscope channel configuration option: {option}')
+            return None
         if values is None:
+            module_logger.info(f'No information available for {option} in the microscope channels configuration ')
             return None
         else:
-            return tuple(values)
+            return tuple(values[ch] for ch in ch_nrs)
 
-
-
-# to add to if
-def get_refractive_index(image):
-    objective_settings = image.getObjectiveSettings()
-    return objective_settings.getRefractiveIndex()
-
-    def _get
-
-    def _get_metadata_from_name(self, name, token_left, token_right, metadata_type=None):
+    def _get_metadata_from_name(self, token_left, token_right, metadata_type, image):
+        name = image.getName()
         start = name.find(token_left)
         if start == -1:
             return None
         name = name[start + len(token_left):]
         end = name.find(token_right)
-        name = metadata_type(name[:end])
+        value = metadata_type(name[:end])
         if metadata_type is None:
-            return name
+            return value
         else:
-            return metadata_type(name)
+            try:
+                value = metadata_type(value)
+            except ValueError as e:
+                module_logger.error(f'Could not cast {value} into {metadata_type}. Please verify file naming for token {token_left}')
+                return None
 
-    def get_image_data(self.image):
-        image_name = image.getName()
-        image_id = image.getId()
-        raw_img = interface.get_intensities(image)
-        # Images from Interface come in zctyx dimensions and locally as zcxy.
-        # The easiest for the moment is to remove t
-        if raw_img.shape[2] == 1:
-            raw_img = np.squeeze(raw_img, 2)  # TODO: Fix this time dimension.
-        else:
-            raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
-        pixel_size = interface.get_pixel_size(image)
-        pixel_size_units = interface.get_pixel_size_units(image)
+        return value
 
-        try:
-            objective_settings = image.getObjectiveSettings()
-            refractive_index = objective_settings.getRefractiveIndex()
-            objective = objective_settings.getObjective()
-            lens_na = objective.getLensNA()
-            lens_magnification = objective.getNominalMagnification()
-        except AttributeError:
-            module_logger.warning(f'Image {image.getName()} does not have a declared objective settings.'
-                                  f'Falling back to metadata stored in image name.')
-            refractive_index = _get_metadata_from_name(image_name, '_ri-', '_', float)
-            lens_na = _get_metadata_from_name(image_name, '_na-', '_', float)
-            lens_magnification = _get_metadata_from_name(image_name, '_mag-', '_', float)
 
+class WideFieldMicroscope(Microscope):
+    """A Widefield microscope"""
+    def __init__(self, device_config):
+        super().__init__(device_config)
+
+        # Setting some objective lens settings
+        self.add_setting('objective_lens_refractive_index', 'float',
+                         # get_from_db_func=interface.get_objective_lens_refractive_index,
+                         get_from_db_func=self.get_objective_lens_refractive_index,
+                         get_from_conf_func=self._get_conf_objective_lens_refr_index,
+                         get_from_name_func=self._get_name_objective_lens_refr_index,
+                         set_func=None,
+                         values=(1.0, 2.0))
+        self.add_setting('objective_lens_na', 'float',
+                         # get_from_db_func=interface.get_objective_lens_na,
+                         get_from_db_func=self.get_objective_lens_na,
+                         get_from_conf_func=self._get_conf_objective_lens_na,
+                         get_from_name_func=self._get_name_objective_lens_na,
+                         set_func=None,
+                         values=(0.0, 2.0))
+        self.add_setting('objective_lens_magnification', 'float',
+                         # get_from_db_func=interface.get_objective_lens_magnification,
+                         get_from_db_func=self.get_objective_lens_magnification,
+                         get_from_conf_func=self._get_conf_objective_lens_magnification,
+                         get_from_name_func=self._get_name_objective_lens_magnification,
+                         set_func=None,
+                         values=(1.0, 1000.0))
+
+        # Setting some channel settings
+        self.add_setting('excitation_wavelengths', 'tuple',
+                         # get_from_db_func=interface.get_excitation_wavelengths,
+                         get_from_db_func=self.get_excitation_wavelengths,
+                         get_from_conf_func=self._get_conf_excitation_wavelengths,
+                         get_from_name_func=self._get_name_excitation_wavelengths,
+                         set_func=None,
+                         values=None)
+        self.add_setting('emission_wavelengths', 'tuple',
+                         # get_from_db_func=interface.get_emission_wavelengths,
+                         get_from_db_func=self.get_emission_wavelengths,
+                         get_from_conf_func=self._get_conf_emission_wavelengths,
+                         get_from_name_func=self._get_name_emission_wavelengths,
+                         set_func=None,
+                         values=None)
+
+    def _get_conf_objective_lens_refr_index(self, image):
+        return self._get_conf_objective_setting('objective_lens_refractive_index', image)
+
+    def _get_name_objective_lens_refr_index(self, image):
+        return self._get_metadata_from_name('_RI=', '_', float, image)
+
+    def _get_conf_objective_lens_na(self, image):
+        return self._get_conf_objective_setting('objective_lens_na', image)
+
+    def _get_name_objective_lens_na(self, image):
+        return self._get_metadata_from_name('_NA=', '_', float, image)
+
+    def _get_conf_objective_lens_magnification(self, image):
+        return self._get_conf_objective_setting('objective_lens_magnification', image)
+
+    def _get_name_objective_lens_magnification(self, image):
+        return self._get_metadata_from_name('_MAG=', '_', float, image)
+
+    def _get_conf_excitation_wavelengths(self, image):
+        return self._get_conf_channel_settings('excitation_wavelengths', image)
+
+    def _get_name_excitation_wavelengths(self, image):
+        return self._get_metadata_from_name('_EX=', '_', list, image)
+
+    def _get_conf_emission_wavelengths(self, image):
+        return self._get_conf_channel_settings('emission_wavelengths', image)
+
+    def _get_name_emission_wavelengths(self, image):
+        return self._get_metadata_from_name('_EM=', '_', list, image)
+
+    # TODO: to move to interface
+    def get_objective_lens_refractive_index(self, image):
+        objective_settings = image.getObjectiveSettings()
+        if objective_settings is None:
+            return None
+        return objective_settings.getRefractiveIndex()
+
+    def get_objective_lens_na(self, image):
+        objective_settings = image.getObjectiveSettings()
+        if objective_settings is None:
+            return None
+        objective = objective_settings.getObjective()
+        if objective is None:
+            return None
+        return objective.getLensNA()
+
+    def get_objective_lens_magnification(self, image):
+        objective_settings = image.getObjectiveSettings()
+        if objective_settings is None:
+            return None
+        objective = objective_settings.getObjective()
+        if objective is None:
+            return None
+        return objective.getNominalMagnification()
+
+    def get_excitation_wavelengths(self, image):
         channels = image.getChannels()
-        excitation_waves = [ch.getExcitationWave() for ch in channels]
-        emission_waves = [ch.getEmissionWave() for ch in channels]
-        if excitation_waves[0] is None:
-            module_logger.warning(f'Image {image.getName()} does not have a declared channels settings.'
-                                  f'Falling back to metadata stored in image name.')
-            excitation_waves = [_get_metadata_from_name(image_name, '_ex-', '_',
-                                                        float)]  # TODO: make this work with more than one channel
-            emission_waves = [_get_metadata_from_name(image_name, '_em-', '_', float)]
+        if channels is None:
+            return None
+        wavelengths = tuple(ch.getExcitationWave() for ch in channels)
+        if not all(wavelengths):
+            return None
+        else:
+            return wavelengths
 
-        return {'image_data': raw_img,
-                'image_name': image_name,
-                'image_id': image_id,
-                'pixel_size': pixel_size,
-                'pixel_size_units': pixel_size_units,
-                'refractive_index': refractive_index,
-                'lens_na': lens_na,
-                'lens_magnification': lens_magnification,
-                'excitation_waves': excitation_waves,
-                'emission_waves': emission_waves,
-                }
+    def get_emission_wavelengths(self, image):
+        channels = image.getChannels()
+        if channels is None:
+            return None
+        wavelengths = tuple(ch.getEmissionWave() for ch in channels)
+        if not all(wavelengths):
+            return None
+        else:
+            return wavelengths
 
+#
+    #
+    # def get_image_data(self, image):
+    #     image_name = image.getName()
+    #     image_id = image.getId()
+    #     raw_img = interface.get_intensities(image)
+    #     # Images from Interface come in zctyx dimensions and locally as zcxy.
+    #     # The easiest for the moment is to remove t
+    #     if raw_img.shape[2] == 1:
+    #         raw_img = np.squeeze(raw_img, 2)  # TODO: Fix this time dimension.
+    #     else:
+    #         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
+    #     pixel_size = interface.get_pixel_size(image)
+    #     pixel_size_units = interface.get_pixel_size_units(image)
+    #
+    #     try:
+    #         objective_settings = image.getObjectiveSettings()
+    #         refractive_index = objective_settings.getRefractiveIndex()
+    #         objective = objective_settings.getObjective()
+    #         lens_na = objective.getLensNA()
+    #         lens_magnification = objective.getNominalMagnification()
+    #     except AttributeError:
+    #         module_logger.warning(f'Image {image.getName()} does not have a declared objective settings.'
+    #                               f'Falling back to metadata stored in image name.')
+    #         refractive_index = _get_metadata_from_name(image_name, '_ri-', '_', float)
+    #         lens_na = _get_metadata_from_name(image_name, '_na-', '_', float)
+    #         lens_magnification = _get_metadata_from_name(image_name, '_mag-', '_', float)
+    #
+    #     channels = image.getChannels()
+    #     excitation_waves = [ch.getExcitationWave() for ch in channels]
+    #     emission_waves = [ch.getEmissionWave() for ch in channels]
+    #     if excitation_waves[0] is None:
+    #         module_logger.warning(f'Image {image.getName()} does not have a declared channels settings.'
+    #                               f'Falling back to metadata stored in image name.')
+    #         excitation_waves = [_get_metadata_from_name(image_name, '_ex-', '_',
+    #                                                     float)]  # TODO: make this work with more than one channel
+    #         emission_waves = [_get_metadata_from_name(image_name, '_em-', '_', float)]
+    #
+    #     return {'image_data': raw_img,
+    #             'image_name': image_name,
+    #             'image_id': image_id,
+    #             'pixel_size': pixel_size,
+    #             'pixel_size_units': pixel_size_units,
+    #             'refractive_index': refractive_index,
+    #             'lens_na': lens_na,
+    #             'lens_magnification': lens_magnification,
+    #             'excitation_waves': excitation_waves,
+    #             'emission_waves': emission_waves,
+    #             }
+    #
