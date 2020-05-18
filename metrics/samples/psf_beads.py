@@ -97,7 +97,7 @@ def _fit_gaussian(profile, guess=None):
 class PSFBeadsConfigurator(Configurator):
     """This class handles the configuration properties of the psf_beads sample
     - Defines configuration properties
-    - Helps in the generation of config files"""
+    - Helps in the generation of analysis_config files"""
     CONFIG_SECTION = 'PSF_BEADS'
     ANALYSES = ['beads']
 
@@ -218,7 +218,7 @@ class PSFBeadsAnalyzer(Analyzer):
                  a list of dicts
                  a dict containing table_names and tables
         """
-        # Get some config parameters
+        # Get some analysis_config parameters
         pixel_size_units = image['pixel_size_units']
         pixel_size = image['pixel_size']
         na = image['lens_na']
@@ -227,7 +227,7 @@ class PSFBeadsAnalyzer(Analyzer):
         excitation_waves = image['excitation_waves']
         emission_waves = image['emission_waves']
 
-        # TODO: Include microscope type into config
+        # TODO: Include microscope type into analysis_config
         # Get resolution parameters
         theoretical_resolution = calculate_theoretcal_resolution(microscope_type=None,
                                                                  na=na,

@@ -104,7 +104,7 @@ def run_script_local():
             analysis.analyze_dataset(connection=conn,
                                      script_params=script_params,
                                      dataset=dataset,
-                                     config=config)
+                                     analysis_config=config)
 
         print(log_string.getvalue())
 
@@ -171,13 +171,13 @@ def run_script():
             for ann in microscope_prj.listAnnotations():
                 if type(ann) == gateway.FileAnnotationWrapper:
                     if ann.getFileName() == script_params['Configuration file name']:
-                        config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large config files
+                        config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large analysis_config files
                         break
 
             analysis.analyze_dataset(connection=conn,
                                      script_params=script_params,
                                      dataset=dataset,
-                                     config=config)
+                                     analysis_config=config)
 
         logger.info(f'End time: {datetime.now()}')
 

@@ -32,8 +32,8 @@ class Analyzer:
     new sample."""
     def __init__(self, config, image_analysis_to_func={}, dataset_analysis_to_func={}, microscope_analysis_to_func={}):
         """Add to the init subclass a dictionary mapping analyses strings to functions
-        :type config: config section
-        :param config: config section specifying sample options
+        :type config: analysis_config section
+        :param config: analysis_config section specifying sample options
         :type image_analysis_to_func: dict
         :param image_analysis_to_func: dictionary mapping image analyses strings to functions
         :type dataset_analysis_to_func: dict
@@ -58,7 +58,7 @@ class Analyzer:
         pass
 
     def _verify_limits(self, key_values, config, object_ref):
-        """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the config"""
+        """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the analysis_config"""
         limits_passed = {'uhl_passed': True,
                          'lhl_passed': True,
                          'usl_passed': True,
@@ -137,7 +137,7 @@ class Analyzer:
         :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
                          are mapped through self.dataset_analysis_to_func
         :param config: a dictionary with the configuration to analyze the image the configuration
-        :param verify_limits: Do a verification of the limits established in teh config file
+        :param verify_limits: Do a verification of the limits established in teh analysis_config file
 
         :returns a list of image objects
                  a list of tags
@@ -180,7 +180,7 @@ class Analyzer:
         :param analyses: a str of list of str specifying the analysis to be made. string to functions to be run
                          are mapped through self.image_analysis_to_func
         :param config: a dictionary with the configuration to analyze the image the configuration
-        :param verify_limits: Do a verification of the limits established in teh config file
+        :param verify_limits: Do a verification of the limits established in teh analysis_config file
 
         :returns a list of image objects
                  a list of roi objects

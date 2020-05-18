@@ -22,7 +22,7 @@ module_logger = logging.getLogger('metrics.samples.argolight')
 class ArgolightConfigurator(Configurator):
     """This class handles the configuration properties of the argolighe sample
     - Defines configuration properties
-    - Helps in the generation of config files"""
+    - Helps in the generation of analysis_config files"""
     CONFIG_SECTION = 'ARGOLIGHT'
     ANALYSES = ['spots', 'vertical_resolution', 'horizontal_resolution']
 

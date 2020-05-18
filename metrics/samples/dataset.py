@@ -13,7 +13,7 @@ module_logger = logging.getLogger('metrics.samples.dataset')
 class DatasetConfigurator(Configurator):
     """This class handles the configuration properties of the excitation_power sample
     - Defines configuration properties
-    - Helps in the generation of config files"""
+    - Helps in the generation of analysis_config files"""
     CONFIG_SECTION = 'DATASET'
     ANALYSES = ['laser_power_measurement']
 

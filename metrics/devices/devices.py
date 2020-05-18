@@ -1,6 +1,8 @@
 from enum import Enum, EnumMeta
 from configparser import NoOptionError
 from collections import Iterable
+from math import sin, asin, cos
+
 
 from metrics.interface import omero as interface
 
@@ -61,18 +63,18 @@ class _Setting:
         return {'type': self.dtype,
                 'values': self.values()}
 
-    def get(self, *args):
+    def get(self, **kwargs):
         """Get a setting"""
         if self._get_from_db is not None:
-            value = self._get_from_db(*args)
+            value = self._get_from_db(**kwargs)
             if value is not None:
                 return value
         if self._get_from_conf is not None:
-            value = self._get_from_conf(*args)
+            value = self._get_from_conf(**kwargs)
             if value is not None:
                 return value
         if self._get_from_name is not None:
-            value = self._get_from_name(*args)
+            value = self._get_from_name(**kwargs)
             if value is not None:
                 return value
         module_logger.warning(f'Device setting could not be retrieved: {self.name}')
@@ -124,25 +126,25 @@ class Device:
                                             set_func,
                                             values)
 
-    def get_setting(self, name, *args):
+    def get_setting(self, name, **kwargs):
         """Tries to get a specified setting from the following sources by order of preference:
         - Image from the database interface
-        - The microscope config linked through the image name
+        - The microscope analysis_config linked through the image name
         - Directly in the image name"""
 
         try:
-            return self._settings[name].get(*args)
+            return self._settings[name].get(**kwargs)
         except Exception as err:
             module_logger.error("in get_setting(%s):", name, exc_info=err)
             raise
 
-    def get_all_settings(self):
-        """Return ordered settings as a list of dicts."""
+    def get_all_settings(self, **kwargs):
+        """Return settings as a dict."""
         def catch(f):
             try:
-                return f()
+                return f(**kwargs)
             except Exception as err:
-                module_logger.error("getting %s: %s", f.__self__.name, err)
+                module_logger.error(f'getting {f.__self__.name}: {err}')
                 return None
         return {k: catch(v.get) for k, v in self._settings.items()}
 
@@ -293,22 +295,22 @@ class WideFieldMicroscope(Microscope):
 
         # Setting some objective lens settings
         self.add_setting('objective_lens_refractive_index', 'float',
-                         # get_from_db_func=interface.get_objective_lens_refractive_index,
-                         get_from_db_func=self.get_objective_lens_refractive_index,
+                         # get_from_db_func=interface._get_objective_lens_refractive_index,
+                         get_from_db_func=self._get_objective_lens_refractive_index,
                          get_from_conf_func=self._get_conf_objective_lens_refr_index,
                          get_from_name_func=self._get_name_objective_lens_refr_index,
                          set_func=None,
                          values=(1.0, 2.0))
         self.add_setting('objective_lens_na', 'float',
-                         # get_from_db_func=interface.get_objective_lens_na,
-                         get_from_db_func=self.get_objective_lens_na,
+                         # get_from_db_func=interface._get_objective_lens_na,
+                         get_from_db_func=self._get_objective_lens_na,
                          get_from_conf_func=self._get_conf_objective_lens_na,
                          get_from_name_func=self._get_name_objective_lens_na,
                          set_func=None,
                          values=(0.0, 2.0))
         self.add_setting('objective_lens_magnification', 'float',
-                         # get_from_db_func=interface.get_objective_lens_magnification,
-                         get_from_db_func=self.get_objective_lens_magnification,
+                         # get_from_db_func=interface._get_objective_lens_magnification,
+                         get_from_db_func=self._get_objective_lens_magnification,
                          get_from_conf_func=self._get_conf_objective_lens_magnification,
                          get_from_name_func=self._get_name_objective_lens_magnification,
                          set_func=None,
@@ -316,15 +318,15 @@ class WideFieldMicroscope(Microscope):
 
         # Setting some channel settings
         self.add_setting('excitation_wavelengths', 'tuple',
-                         # get_from_db_func=interface.get_excitation_wavelengths,
-                         get_from_db_func=self.get_excitation_wavelengths,
+                         # get_from_db_func=interface._get_excitation_wavelengths,
+                         get_from_db_func=self._get_excitation_wavelengths,
                          get_from_conf_func=self._get_conf_excitation_wavelengths,
                          get_from_name_func=self._get_name_excitation_wavelengths,
                          set_func=None,
                          values=None)
         self.add_setting('emission_wavelengths', 'tuple',
-                         # get_from_db_func=interface.get_emission_wavelengths,
-                         get_from_db_func=self.get_emission_wavelengths,
+                         # get_from_db_func=interface._get_emission_wavelengths,
+                         get_from_db_func=self._get_emission_wavelengths,
                          get_from_conf_func=self._get_conf_emission_wavelengths,
                          get_from_name_func=self._get_name_emission_wavelengths,
                          set_func=None,
@@ -361,13 +363,13 @@ class WideFieldMicroscope(Microscope):
         return self._get_metadata_from_name('_EM=', '_', list, image)
 
     # TODO: to move to interface
-    def get_objective_lens_refractive_index(self, image):
+    def _get_objective_lens_refractive_index(self, image):
         objective_settings = image.getObjectiveSettings()
         if objective_settings is None:
             return None
         return objective_settings.getRefractiveIndex()
 
-    def get_objective_lens_na(self, image):
+    def _get_objective_lens_na(self, image):
         objective_settings = image.getObjectiveSettings()
         if objective_settings is None:
             return None
@@ -376,7 +378,7 @@ class WideFieldMicroscope(Microscope):
             return None
         return objective.getLensNA()
 
-    def get_objective_lens_magnification(self, image):
+    def _get_objective_lens_magnification(self, image):
         objective_settings = image.getObjectiveSettings()
         if objective_settings is None:
             return None
@@ -385,7 +387,7 @@ class WideFieldMicroscope(Microscope):
             return None
         return objective.getNominalMagnification()
 
-    def get_excitation_wavelengths(self, image):
+    def _get_excitation_wavelengths(self, image):
         channels = image.getChannels()
         if channels is None:
             return None
@@ -395,7 +397,7 @@ class WideFieldMicroscope(Microscope):
         else:
             return wavelengths
 
-    def get_emission_wavelengths(self, image):
+    def _get_emission_wavelengths(self, image):
         channels = image.getChannels()
         if channels is None:
             return None
@@ -454,7 +456,51 @@ class WideFieldMicroscope(Microscope):
 
         return theoretical_res
 
+    def get_nyquist(self, image):
+        """Returns a dictionary containing the nyquist sampling criteria values for every channel in image.
+        """
+        nyquist_delta = {'lateral': [],
+                         'axial': [],
+                         'units': 'NANOMETER'}  # TODO: FIX units for nyquist and resolution. Get them from wavelength units.
+        na = self.get_setting('objective_lens_na', image)
+        ri = self.get_setting('objective_lens_refractive_index', image)
+        alpha = asin(na / ri)
+        for em in self.get_setting('emission_wavelengths', image):
+            nyquist_delta['lateral'].append(em / (4 * ri * sin(alpha)))
+            nyquist_delta['axial'].append(em / (2 * ri * (1 - cos(alpha))))
 
+        return nyquist_delta
+
+        #
+        # if refractive_index is None:
+        #     module_logger.warning('Refractive index is being guessed. Nyquist criteria will not be correct.')
+        #     if na > .8:
+        #         refractive_index = 1.5
+        #     else:
+        #         refractive_index = 1.0
+        # alpha = asin(na / refractive_index)
+        # # Theoretical resolutions for confocal microscope are only attained with very closed pinhole
+        # # We add a tolerance factor to render theoretical resolution more realistic
+        # tolerance = 1.6
+        # nyquist_delta = {}
+        # if microscope_type is None:
+        #     module_logger.warning(
+        #         'Microscope type undefined to calculate Nyquist criterion. Falling back into Wide-Field')
+        #     nyquist_delta = calculate_nyquist('wf', na, refractive_index, emission_wave, excitation_wave)
+        # elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
+        #     nyquist_delta['lateral'] = emission_wave / (4 * refractive_index * sin(alpha))
+        #     nyquist_delta['axial'] = emission_wave / (2 * refractive_index * (1 - cos(alpha)))
+        #     nyquist_delta['units'] = 'NANOMETER'
+        # elif microscope_type.lower() in ['confocal']:
+        #     nyquist_delta['lateral'] = tolerance * excitation_wave / (8 * refractive_index * sin(alpha))
+        #     nyquist_delta['axial'] = tolerance * excitation_wave / (4 * refractive_index * (1 - cos(alpha)))
+        #     nyquist_delta['units'] = 'NANOMETER'
+        # else:
+        #     module_logger.warning(
+        #         'Could not find microscope type to calculate Nyquist criterion. Falling back into Wide-Field')
+        #     nyquist_delta = calculate_nyquist('wf', na, refractive_index, emission_wave, excitation_wave)
+        #
+        # return nyquist_delta
 
 #
     #

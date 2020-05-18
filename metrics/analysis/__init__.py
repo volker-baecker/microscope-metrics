@@ -14,6 +14,9 @@ import logging
 # import dataset analysis
 from metrics.samples.dataset import DatasetConfigurator
 
+# import devices
+from metrics.devices import devices
+
 # import samples
 from metrics.samples.argolight import ArgolightConfigurator
 from metrics.samples.psf_beads import PSFBeadsConfigurator
@@ -35,20 +38,7 @@ NAMESPACE_VALIDATED = 'validated'
 # TODO: Add a special case editable
 
 
-def _get_metadata_from_name(name, token_left, token_right, metadata_type=None):
-    start = name.find(token_left)
-    if start == -1:
-        return None
-    name = name[start + len(token_left):]
-    end = name.find(token_right)
-    name = metadata_type(name[:end])
-    if metadata_type is None:
-        return name
-    else:
-        return metadata_type(name)
-
-
-def get_image_data(image):
+def get_image_data(image, device):
     image_name = image.getName()
     image_id = image.getId()
     raw_img = interface.get_intensities(image)
@@ -61,39 +51,17 @@ def get_image_data(image):
     pixel_size = interface.get_pixel_size(image)
     pixel_size_units = interface.get_pixel_size_units(image)
 
-    try:
-        objective_settings = image.getObjectiveSettings()
-        refractive_index = objective_settings.getRefractiveIndex()
-        objective = objective_settings.getObjective()
-        lens_na = objective.getLensNA()
-        lens_magnification = objective.getNominalMagnification()
-    except AttributeError:
-        module_logger.warning(f'Image {image.getName()} does not have a declared objective settings.'
-                              f'Falling back to metadata stored in image name.')
-        refractive_index = _get_metadata_from_name(image_name, '_ri-', '_', float)
-        lens_na = _get_metadata_from_name(image_name, '_na-', '_', float)
-        lens_magnification = _get_metadata_from_name(image_name, '_mag-', '_', float)
+    device_settings = device.get_all_settings(image=image)
 
-    channels = image.getChannels()
-    excitation_waves = [ch.getExcitationWave() for ch in channels]
-    emission_waves = [ch.getEmissionWave() for ch in channels]
-    if excitation_waves[0] is None:
-        module_logger.warning(f'Image {image.getName()} does not have a declared channels settings.'
-                              f'Falling back to metadata stored in image name.')
-        excitation_waves = [_get_metadata_from_name(image_name, '_ex-', '_', float)]  # TODO: make this work with more than one channel
-        emission_waves = [_get_metadata_from_name(image_name, '_em-', '_', float)]
+    image_settings = {'image_data': raw_img,
+                      'image_name': image_name,
+                      'image_id': image_id,
+                      'pixel_size': pixel_size,
+                      'pixel_size_units': pixel_size_units,
+                      }
+    image_settings.update(device_settings)
 
-    return {'image_data': raw_img,
-            'image_name': image_name,
-            'image_id': image_id,
-            'pixel_size': pixel_size,
-            'pixel_size_units': pixel_size_units,
-            'refractive_index': refractive_index,
-            'lens_na': lens_na,
-            'lens_magnification': lens_magnification,
-            'excitation_waves': excitation_waves,
-            'emission_waves': emission_waves,
-            }
+    return image_settings
 
 
 def save_data_table(conn, table_name, col_names, col_descriptions, col_data, interface_obj, namespace):
@@ -160,8 +128,11 @@ def create_image(conn, image_intensities, image_name, description, dataset, sour
     return new_image
 
 
-def analyze_dataset(connection, script_params, dataset, config):
+def analyze_dataset(connection, script_params, dataset, analysis_config, devide_config):
     # TODO: must note in mapann the analyses that were done
+
+    # TODO: do something to automate selection of microscope type
+    device = devices.WideFieldMicroscope(devide_config)
 
     module_logger.info(f'Analyzing data from Dataset: {dataset.getId()}')
     module_logger.info(f'Date and time: {datetime.now()}')
@@ -175,9 +146,9 @@ def analyze_dataset(connection, script_params, dataset, config):
                              'sources': list()}
 
     for section, analyses, handler in zip(SAMPLE_SECTIONS, SAMPLE_ANALYSES, SAMPLE_HANDLERS):
-        if config.has_section(section):
+        if analysis_config.has_section(section):
             module_logger.info(f'Running analysis on {section.capitalize()} sample(s)')
-            section_conf = config[section]
+            section_conf = analysis_config[section]
             handler_instance = handler(config=section_conf)
             for analysis in analyses:
                 if section_conf.getboolean(f'analyze_{analysis}'):
@@ -185,10 +156,11 @@ def analyze_dataset(connection, script_params, dataset, config):
                                  f'{NAMESPACE_ANALYZED}/'
                                  f'{handler.get_module()}/'
                                  f'{analysis}/'
-                                 f'{config["MAIN"]["config_version"]}')
+                                 f'{analysis_config["MAIN"]["config_version"]}')
                     images = interface.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
                     for image in images:
-                        image_data = get_image_data(image=image)
+                        image_data = get_image_data(image=image,
+                                                    device=device)
                         out_images,         \
                             out_rois,       \
                             out_tags,       \
@@ -205,7 +177,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                                          description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
                                          dataset=dataset,
                                          source_image_id=image.getId(),
-                                         metrics_generated_tag_id=config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics config
+                                         metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics analysis_config
 
                         for out_roi in out_rois:
                             create_roi(conn=connection,
@@ -244,9 +216,9 @@ def analyze_dataset(connection, script_params, dataset, config):
     dataset_analyses = DatasetConfigurator.ANALYSES
     dataset_handler = DatasetConfigurator.SAMPLE_CLASS
 
-    if config.has_section(dataset_section):
+    if analysis_config.has_section(dataset_section):
         module_logger.info(f'Running analysis on dataset')
-        ds_conf = config[dataset_section]
+        ds_conf = analysis_config[dataset_section]
         ds_handler_instance = dataset_handler(config=ds_conf)
         for dataset_analysis in dataset_analyses:
             if ds_conf.getboolean(f'analyze_{dataset_analysis}'):
@@ -254,7 +226,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                              f'{NAMESPACE_ANALYZED}/'
                              f'{dataset_handler.get_module()}/'
                              f'{dataset_analysis}/'
-                             f'{config["MAIN"]["config_version"]}')
+                             f'{analysis_config["MAIN"]["config_version"]}')
                 out_images,         \
                     out_tags,       \
                     out_dicts,      \
@@ -262,14 +234,14 @@ def analyze_dataset(connection, script_params, dataset, config):
                     out_tables,     \
                     image_limits_passed = ds_handler_instance.analyze_dataset(dataset=dataset,
                                                                               analyses=dataset_analysis,
-                                                                              config=ds_conf)
+                                                                              analysis_config=ds_conf)
                 for out_image in out_images:
                     create_image(conn=connection,
                                  image_intensities=out_image['image_data'],
                                  image_name=out_image['image_name'],
                                  description=out_image["image_desc"],
                                  dataset=dataset,
-                                 metrics_generated_tag_id=config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics config
+                                 metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics analysis_config
 
                 for out_tag in out_tags:
                     pass  # TODO implement interface to save tags
@@ -305,19 +277,19 @@ def analyze_dataset(connection, script_params, dataset, config):
                  f'{NAMESPACE_ANALYZED}/'
                  'dataset/'
                  'limits_verification/'
-                 f'{config["MAIN"]["config_version"]}')
+                 f'{analysis_config["MAIN"]["config_version"]}')
 
     # dataset_limits_passed['limits'] = list(dict.fromkeys(dataset_limits_passed['limits']))  # Remove duplicates
 
     if dataset_limits_passed['uhl_passed'] and dataset_limits_passed['lhl_passed']:  # Hard limits passed
-        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('passed_hard_limits_tag_id'))
+        interface.link_annotation_tag(connection, dataset, analysis_config['MAIN'].getint('passed_hard_limits_tag_id'))
     else:
-        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('not_passed_hard_limits_tag_id'))
+        interface.link_annotation_tag(connection, dataset, analysis_config['MAIN'].getint('not_passed_hard_limits_tag_id'))
 
     if dataset_limits_passed['usl_passed'] and dataset_limits_passed['lsl_passed']:  # Soft limits passed
-        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('passed_soft_limits_tag_id'))
+        interface.link_annotation_tag(connection, dataset, analysis_config['MAIN'].getint('passed_soft_limits_tag_id'))
     else:
-        interface.link_annotation_tag(connection, dataset, config['MAIN'].getint('not_passed_soft_limits_tag_id'))
+        interface.link_annotation_tag(connection, dataset, analysis_config['MAIN'].getint('not_passed_soft_limits_tag_id'))
 
     save_data_key_values(conn=connection,
                          key_values=dataset_limits_passed,
@@ -331,7 +303,7 @@ def analyze_dataset(connection, script_params, dataset, config):
                          f'{NAMESPACE_ANALYZED}/'
                          'comment/'
                          'comment/'
-                         f'{config["MAIN"]["config_version"]}')
+                         f'{analysis_config["MAIN"]["config_version"]}')
 
             comment_annotation = interface.create_annotation_comment(connection=connection,
                                                                      comment_string=script_params['Comment'],
