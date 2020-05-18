@@ -52,6 +52,7 @@ class DatasetAnalyzer(Analyzer):
 
         wavelengths = config.getlistint('laser_power_measurement_wavelengths', None)
         power_units = config.get('laser_power_measurement_units')
+        measurement_method = config.get('laser_power_measurement_method')
 
         if wavelengths is None:
             module_logger.error('Config defined to do excitation power measurements but No wavelengths were provided')
@@ -60,7 +61,8 @@ class DatasetAnalyzer(Analyzer):
         key_values = {'analysis_date': datetime.now().strftime("%Y-%m-%d")}
         for wave in wavelengths:
             key_values.update({str(wave): ''})
-        key_values.update({'power_units': power_units})
+        key_values['power_units'] = power_units
+        key_values['measurement_method'] = measurement_method
 
         out_images = []
         out_rois = []

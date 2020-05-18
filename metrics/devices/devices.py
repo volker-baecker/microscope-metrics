@@ -28,6 +28,7 @@ class _Setting:
     # Settings classes should be private: devices should use a factory method
     # rather than instantiate settings directly; most already use add_setting
     # for this.
+    # TODO: Implement a get units
     def __init__(self, name, dtype, get_from_db_func, get_from_conf_func, get_from_name_func, set_func, values=None):
         """Create a setting.
         :param name: the setting's name
@@ -403,6 +404,57 @@ class WideFieldMicroscope(Microscope):
             return None
         else:
             return wavelengths
+
+    def get_theoretical_res_fwhm(self, image):
+        """Returns a dictionary containing the lateral and axial FWHM theoretical resolutions for every channel in image.
+
+        :param image: an image object
+        :return: a dictionary in the form:
+                 {'fwhm_theoretical_lateral_resolution': list of lateral resolutions for every channel,
+                  'fwhm_theoretical_axial_resolution': list of axial resolutions for every channel,
+                  'fwhm_theoretical_resolution_units': string specifying units}
+        """
+        theoretical_res = {'fwhm_theoretical_lateral_resolution': [],
+                           'fwhm_theoretical_axial_resolution': [],
+                           'fwhm_theoretical_resolution_units': 'NANOMETER'}
+        na = self.get_setting('objective_lens_na', image)
+        # ri = self.get_setting('objective_lens_refractive_index', image)
+        for em in self.get_setting('emission_wavelengths', image):
+            theoretical_res['fwhm_lateral'].append(.353 * em / na)
+            theoretical_res['fwhm_axial'].append(None)  # TODO: find formula for fwhm axial resolution
+
+        return theoretical_res
+
+    def get_theoretical_res_rayleigh(self, image):
+        """Returns a dictionary containing the lateral and axial Rayleigh theoretical resolutions for every channel in image.
+
+        :param image: an image object
+        :return: a dictionary in the form:
+                 {'rayleigh_theoretical_lateral_resolution': list of lateral resolutions for every channel,
+                  'rayleigh_theoretical_axial_resolution': list of axial resolutions for every channel,
+                  'rayleigh_theoretical_resolution_units': string specifying units}
+        """
+        theoretical_res = {'rayleigh_theoretical_lateral_resolution': [],
+                           'rayleigh_theoretical_axial_resolution': [],
+                           'rayleigh_theoretical_resolution_units': 'NANOMETER'}
+        na = self.get_setting('objective_lens_na', image)
+        ri = self.get_setting('objective_lens_refractive_index', image)
+        for em in self.get_setting('emission_wavelengths', image):
+            theoretical_res['rayleigh_lateral'].append(.61 * em / na)
+            theoretical_res['rayleigh_axial'].append(2 * em * ri / na ** 2)
+
+        return theoretical_res
+
+    def get_theoretical_res(self, image):
+        """Returns a dictionary containing the theoretical resolutions for every channel in image in all the
+        implemented methods."""
+        theoretical_res = dict()
+        theoretical_res.update(self.get_theoretical_res_fwhm(image))
+        theoretical_res.update(self.get_theoretical_res_rayleigh(image))
+
+        return theoretical_res
+
+
 
 #
     #
