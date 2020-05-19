@@ -308,11 +308,11 @@ class WideFieldMicroscope(Microscope):
                          get_from_name_func=self._get_name_objective_lens_na,
                          set_func=None,
                          values=(0.0, 2.0))
-        self.add_setting('objective_lens_magnification', 'float',
-                         # get_from_db_func=interface._get_objective_lens_magnification,
-                         get_from_db_func=self._get_objective_lens_magnification,
-                         get_from_conf_func=self._get_conf_objective_lens_magnification,
-                         get_from_name_func=self._get_name_objective_lens_magnification,
+        self.add_setting('objective_lens_nominal_magnification', 'float',
+                         # get_from_db_func=interface._get_objective_lens_nominal_magnification,
+                         get_from_db_func=self._get_objective_lens_nominal_magnification,
+                         get_from_conf_func=self._get_conf_objective_lens_nominal_magnification,
+                         get_from_name_func=self._get_name_objective_lens_nominal_magnification,
                          set_func=None,
                          values=(1.0, 1000.0))
 
@@ -332,6 +332,13 @@ class WideFieldMicroscope(Microscope):
                          set_func=None,
                          values=None)
 
+    def get_all_settings(self, **kwargs):
+        settings = super().get_all_settings(**kwargs)
+        settings.update(self.get_theoretical_res(**kwargs))
+        settings.update(self.get_nyquist(**kwargs))
+
+        return settings
+
     def _get_conf_objective_lens_refr_index(self, image):
         return self._get_conf_objective_setting('objective_lens_refractive_index', image)
 
@@ -344,10 +351,10 @@ class WideFieldMicroscope(Microscope):
     def _get_name_objective_lens_na(self, image):
         return self._get_metadata_from_name('_NA=', '_', float, image)
 
-    def _get_conf_objective_lens_magnification(self, image):
-        return self._get_conf_objective_setting('objective_lens_magnification', image)
+    def _get_conf_objective_lens_nominal_magnification(self, image):
+        return self._get_conf_objective_setting('objective_lens_nominal_magnification', image)
 
-    def _get_name_objective_lens_magnification(self, image):
+    def _get_name_objective_lens_nominal_magnification(self, image):
         return self._get_metadata_from_name('_MAG=', '_', float, image)
 
     def _get_conf_excitation_wavelengths(self, image):
@@ -378,7 +385,7 @@ class WideFieldMicroscope(Microscope):
             return None
         return objective.getLensNA()
 
-    def _get_objective_lens_magnification(self, image):
+    def _get_objective_lens_nominal_magnification(self, image):
         objective_settings = image.getObjectiveSettings()
         if objective_settings is None:
             return None
@@ -407,69 +414,116 @@ class WideFieldMicroscope(Microscope):
         else:
             return wavelengths
 
-    def get_theoretical_res_fwhm(self, image):
+    def get_theoretical_res_fwhm(self, **kwargs):
         """Returns a dictionary containing the lateral and axial FWHM theoretical resolutions for every channel in image.
 
         :param image: an image object
         :return: a dictionary in the form:
-                 {'fwhm_theoretical_lateral_resolution': list of lateral resolutions for every channel,
-                  'fwhm_theoretical_axial_resolution': list of axial resolutions for every channel,
-                  'fwhm_theoretical_resolution_units': string specifying units}
+                 {'resolution_theoretical_fwhm_lateral': list of lateral resolutions for every channel,
+                  'resolution_theoretical_fwhm_axial': list of axial resolutions for every channel,
+                  'resolution_theoretical_fwhm_units': string specifying units}
         """
-        theoretical_res = {'fwhm_theoretical_lateral_resolution': [],
-                           'fwhm_theoretical_axial_resolution': [],
-                           'fwhm_theoretical_resolution_units': 'NANOMETER'}
-        na = self.get_setting('objective_lens_na', image)
-        # ri = self.get_setting('objective_lens_refractive_index', image)
-        for em in self.get_setting('emission_wavelengths', image):
-            theoretical_res['fwhm_lateral'].append(.353 * em / na)
-            theoretical_res['fwhm_axial'].append(None)  # TODO: find formula for fwhm axial resolution
+        theoretical_res = {'resolution_theoretical_fwhm_lateral': [],
+                           'resolution_theoretical_fwhm_axial': [],
+                           'resolution_theoretical_fwhm_units': 'NANOMETER'}
+        na = self.get_setting('objective_lens_na', **kwargs)
+        for em in self.get_setting('emission_wavelengths', **kwargs):
+            try:
+                theoretical_res['resolution_theoretical_fwhm_lateral'].append(.353 * em / na)
+            except TypeError as e:
+                module_logger.warning('FWHM theoretical resolution could not be calculated. Verify configuration files.')
+                theoretical_res['resolution_theoretical_fwhm_lateral'].append(None)
+            try:
+                theoretical_res['resolution_theoretical_fwhm_axial'].append(None)  # TODO: find formula for fwhm axial resolution
+            except TypeError as e:
+                module_logger.warning('FWHM theoretical resolution could not be calculated. Verify configuration files.')
+                theoretical_res['resolution_theoretical_fwhm_axial'].append(None)
 
         return theoretical_res
 
-    def get_theoretical_res_rayleigh(self, image):
+    def get_theoretical_res_rayleigh(self, **kwargs):
         """Returns a dictionary containing the lateral and axial Rayleigh theoretical resolutions for every channel in image.
 
         :param image: an image object
         :return: a dictionary in the form:
-                 {'rayleigh_theoretical_lateral_resolution': list of lateral resolutions for every channel,
-                  'rayleigh_theoretical_axial_resolution': list of axial resolutions for every channel,
-                  'rayleigh_theoretical_resolution_units': string specifying units}
+                 {'resolution_theoretical_rayleigh_lateral': list of lateral resolutions for every channel,
+                  'resolution_theoretical_rayleigh_axial': list of axial resolutions for every channel,
+                  'resolution_theoretical_rayleigh_units': string specifying units}
         """
-        theoretical_res = {'rayleigh_theoretical_lateral_resolution': [],
-                           'rayleigh_theoretical_axial_resolution': [],
-                           'rayleigh_theoretical_resolution_units': 'NANOMETER'}
-        na = self.get_setting('objective_lens_na', image)
-        ri = self.get_setting('objective_lens_refractive_index', image)
-        for em in self.get_setting('emission_wavelengths', image):
-            theoretical_res['rayleigh_lateral'].append(.61 * em / na)
-            theoretical_res['rayleigh_axial'].append(2 * em * ri / na ** 2)
+        theoretical_res = {'resolution_theoretical_rayleigh_lateral': [],
+                           'resolution_theoretical_rayleigh_axial': [],
+                           'resolution_theoretical_rayleigh_units': 'NANOMETER'}
+        na = self.get_setting('objective_lens_na', **kwargs)
+        ri = self.get_setting('objective_lens_refractive_index', **kwargs)
+        for em in self.get_setting('emission_wavelengths', **kwargs):
+            try:
+                theoretical_res['resolution_theoretical_rayleigh_lateral'].append(.61 * em / na)
+            except TypeError as e:
+                module_logger.warning('Rayleigh theoretical lateral resolution could not be calculated. Verify configuration files.')
+                theoretical_res['resolution_theoretical_rayleigh_lateral'].append(None)
+            try:
+                theoretical_res['resolution_theoretical_rayleigh_axial'].append(2 * em * ri / na ** 2)
+            except TypeError as e:
+                module_logger.warning('Rayleigh theoretical axial resolution could not be calculated. Verify configuration files.')
+                theoretical_res['resolution_theoretical_rayleigh_axial'].append(None)
 
         return theoretical_res
 
-    def get_theoretical_res(self, image):
+    def get_theoretical_res(self, **kwargs):
         """Returns a dictionary containing the theoretical resolutions for every channel in image in all the
         implemented methods."""
         theoretical_res = dict()
-        theoretical_res.update(self.get_theoretical_res_fwhm(image))
-        theoretical_res.update(self.get_theoretical_res_rayleigh(image))
+        theoretical_res.update(self.get_theoretical_res_fwhm(**kwargs))
+        theoretical_res.update(self.get_theoretical_res_rayleigh(**kwargs))
 
         return theoretical_res
 
-    def get_nyquist(self, image):
+    def get_nyquist(self, **kwargs):
         """Returns a dictionary containing the nyquist sampling criteria values for every channel in image.
         """
-        nyquist_delta = {'lateral': [],
-                         'axial': [],
-                         'units': 'NANOMETER'}  # TODO: FIX units for nyquist and resolution. Get them from wavelength units.
-        na = self.get_setting('objective_lens_na', image)
-        ri = self.get_setting('objective_lens_refractive_index', image)
-        alpha = asin(na / ri)
-        for em in self.get_setting('emission_wavelengths', image):
-            nyquist_delta['lateral'].append(em / (4 * ri * sin(alpha)))
-            nyquist_delta['axial'].append(em / (2 * ri * (1 - cos(alpha))))
+        nyquist_delta = {'nyquist_lateral': [],
+                         'nyquist_axial': [],
+                         'nyquist_units': 'NANOMETER'}  # TODO: FIX units for nyquist and resolution. Get them from wavelength units.
+        na = self.get_setting('objective_lens_na', **kwargs)
+        ri = self.get_setting('objective_lens_refractive_index', **kwargs)
+        for em in self.get_setting('emission_wavelengths', **kwargs):
+            try:
+                nyquist_delta['nyquist_lateral'].append(em / (4 * ri * (na / ri)))
+            except TypeError as e:
+                module_logger.warning('Lateral Nyquist criterion could not be calculated. Verify configuration files.')
+                nyquist_delta['nyquist_lateral'].append(None)
+            try:
+                nyquist_delta['nyquist_axial'].append(em / (2 * ri * (1 - cos(asin(na / ri)))))
+            except TypeError as e:
+                module_logger.warning('Axial Nyquist criterion could not be calculated. Verify configuration files.')
+                nyquist_delta['nyquist_axial'].append(None)
 
         return nyquist_delta
+        #
+        # def calculate_theoretcal_resolution(microscope_type, na, refractive_index, emission_wave, excitation_wave=None):
+        #     theoretical_res = {}
+        #     if microscope_type is None:
+        #         module_logger.warning(
+        #             'Microscope type undefined to calculate theoretical resolution. Falling back into Wide-Field')
+        #         theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave,
+        #                                                           excitation_wave=excitation_wave)
+        #     elif microscope_type.lower() in ['wf', 'wide-field', 'widefield']:
+        #         theoretical_res['fwhm_lateral'] = .353 * emission_wave / na
+        #         theoretical_res['rayleigh_lateral'] = .61 * emission_wave / na
+        #         theoretical_res['rayleigh_axial'] = 2 * emission_wave * refractive_index / na ** 2
+        #         theoretical_res['units'] = 'NANOMETER'
+        #     elif microscope_type.lower() in ['confocal']:
+        #         theoretical_res['fwhm_lateral'] = .353 * emission_wave / na
+        #         theoretical_res['rayleigh_lateral'] = .4 * emission_wave / na
+        #         theoretical_res['rayleigh_axial'] = 1.4 * emission_wave * refractive_index / na ** 2
+        #         theoretical_res['units'] = 'NANOMETER'
+        #     else:
+        #         module_logger.warning(
+        #             'Could not find microscope type to calculate theoretical resolution. Falling back into Wide-Field')
+        #         theoretical_res = calculate_theoretcal_resolution('wf', na, refractive_index, emission_wave,
+        #                                                           excitation_wave=excitation_wave)
+        #
+        #     return theoretical_res
 
         #
         # if refractive_index is None:

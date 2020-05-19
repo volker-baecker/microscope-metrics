@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 class Configurator:
     """This is a superclass taking care of the configuration of a new sample. Helps generating configuration files and
-    defines configuration parameters necessary for the different analyses.
+    defines configuration parameters necessary for the different analyses. You should subclass this when you create a
+    new sample.
     """
     # The configuration section has to be defined for every subclass
     CONFIG_SECTION: str = None
@@ -18,7 +19,7 @@ class Configurator:
         # self.validate_config()
 
     @classmethod
-    def register_sample(cls, sample_class):
+    def register_sample_analyzer(cls, sample_class):
         cls.SAMPLE_CLASS = sample_class
         return sample_class
 
@@ -28,7 +29,7 @@ class Configurator:
 
 
 class Analyzer:
-    """This is the superclass defining the interface to a sample object. You should subclass this in order to create a
+    """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
     def __init__(self, config, image_analysis_to_func={}, dataset_analysis_to_func={}, microscope_analysis_to_func={}):
         """Add to the init subclass a dictionary mapping analyses strings to functions
@@ -66,10 +67,15 @@ class Analyzer:
                          'limits': list(),
                          'sources': list()}
         for option, limit in config.items():
+            if option[-4:] in ['_uhl', '_lhl', '_usl', '_lsl']:
+                key = option[:-4]
+                try:
+                    value = key_values[key]
+                except KeyError as e:
+                    continue
+
             # Evaluate upper hard limits
             if option.endswith('_uhl'):
-                key = option[:-4]
-                value = key_values[key]
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value >= limit:
                     key_values[key + '_uhl_passed'] = 'No'
@@ -81,8 +87,6 @@ class Analyzer:
 
             # Evaluate upper soft limits
             elif option.endswith('_usl'):
-                key = option[:-4]
-                value = key_values[key]
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value >= limit:
                     key_values[key + '_usl_passed'] = 'No'
@@ -93,9 +97,7 @@ class Analyzer:
                     key_values[key + '_usl_passed'] = 'Yes'
 
             # Evaluate lower hard limits
-            if option.endswith('_lhl'):
-                key = option[:-4]
-                value = key_values[key]
+            elif option.endswith('_lhl'):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value <= limit:
                     key_values[key + '_lhl_passed'] = 'No'
@@ -106,9 +108,7 @@ class Analyzer:
                     key_values[key + '_lhl_passed'] = 'Yes'
 
             # Evaluate lower soft limits
-            if option.endswith('_lsl'):
-                key = option[:-4]
-                value = key_values[key]
+            elif option.endswith('_lsl'):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value <= limit:
                     key_values[key + '_lsl_passed'] = 'No'
@@ -234,3 +234,8 @@ class Analyzer:
             return shape
         else:
             raise ValueError('Cannot recognize that type of shape')
+
+
+class Reporter:
+    """This is the superclass taking care of creating reports for a particular type of sample.
+    You should subclass this when you create a new sample."""

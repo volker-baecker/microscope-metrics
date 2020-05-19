@@ -94,9 +94,14 @@ def run_script_local():
 
         logger.info(f'Connection successful: {conn.isConnected()}')
 
-        # Getting the configuration file associated with the microscope
-        config = MetricsConfig()
-        config.read(script_params['Configuration file name'])
+        # Getting the configuration files
+        analysis_config = MetricsConfig()
+        analysis_config.read('main_config.ini')  # TODO: read main config from somewhere
+        analysis_config.read(script_params['Configuration file name'])
+
+        device_config = MetricsConfig()
+        device_config.read(analysis_config.get('MAIN', 'device_conf_file_name'))
+
 
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
@@ -104,7 +109,8 @@ def run_script_local():
             analysis.analyze_dataset(connection=conn,
                                      script_params=script_params,
                                      dataset=dataset,
-                                     analysis_config=config)
+                                     analysis_config=analysis_config,
+                                     device_config=device_config)
 
         print(log_string.getvalue())
 
@@ -116,7 +122,10 @@ def run_script_local():
 
 def run_script():
 
-    config = MetricsConfig()
+    device_config = MetricsConfig()
+    analysis_config = MetricsConfig()
+    # We are currently merging main config and analysis config
+    analysis_config.read('main_config.ini')  # TODO: read main config from somewhere in the installation
 
     client = scripts.client(
         'Run_Metrics.py',
@@ -168,16 +177,19 @@ def run_script():
             # Get the project / microscope
             microscope_prj = dataset.getParent()  # We assume one project per dataset
 
+            device_config_file_name = analysis_config.get('MAIN', 'device_conf_file_name')
             for ann in microscope_prj.listAnnotations():
                 if type(ann) == gateway.FileAnnotationWrapper:
                     if ann.getFileName() == script_params['Configuration file name']:
-                        config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large analysis_config files
-                        break
+                        analysis_config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this for large analysis_config files
+                    elif ann.getFileName() == device_config_file_name:
+                        device_config.read_string(ann.getFileInChunks().__next__().decode())  # TODO: Fix this too for large analysis_config files
 
             analysis.analyze_dataset(connection=conn,
                                      script_params=script_params,
                                      dataset=dataset,
-                                     analysis_config=config)
+                                     analysis_config=analysis_config,
+                                     device_config=device_config)
 
         logger.info(f'End time: {datetime.now()}')
 

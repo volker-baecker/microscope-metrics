@@ -21,7 +21,7 @@ class DatasetConfigurator(Configurator):
         super().__init__(config)
 
 
-@DatasetConfigurator.register_sample
+@DatasetConfigurator.register_sample_analyzer
 class DatasetAnalyzer(Analyzer):
     """This class handles the Excitation_power sample:
     - Defines the logic of the associated analyses

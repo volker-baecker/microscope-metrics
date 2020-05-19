@@ -128,11 +128,11 @@ def create_image(conn, image_intensities, image_name, description, dataset, sour
     return new_image
 
 
-def analyze_dataset(connection, script_params, dataset, analysis_config, devide_config):
+def analyze_dataset(connection, script_params, dataset, analysis_config, device_config):
     # TODO: must note in mapann the analyses that were done
 
     # TODO: do something to automate selection of microscope type
-    device = devices.WideFieldMicroscope(devide_config)
+    device = devices.WideFieldMicroscope(device_config)
 
     module_logger.info(f'Analyzing data from Dataset: {dataset.getId()}')
     module_logger.info(f'Date and time: {datetime.now()}')
@@ -156,7 +156,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, devide_
                                  f'{NAMESPACE_ANALYZED}/'
                                  f'{handler.get_module()}/'
                                  f'{analysis}/'
-                                 f'{analysis_config["MAIN"]["config_version"]}')
+                                 f'{analysis_config["MAIN"]["metrics_version"]}')
                     images = interface.get_tagged_images_in_dataset(dataset, section_conf.getint(f'{analysis}_image_tag_id'))
                     for image in images:
                         image_data = get_image_data(image=image,
@@ -226,7 +226,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, devide_
                              f'{NAMESPACE_ANALYZED}/'
                              f'{dataset_handler.get_module()}/'
                              f'{dataset_analysis}/'
-                             f'{analysis_config["MAIN"]["config_version"]}')
+                             f'{analysis_config["MAIN"]["metrics_version"]}')
                 out_images,         \
                     out_tags,       \
                     out_dicts,      \
@@ -234,7 +234,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, devide_
                     out_tables,     \
                     image_limits_passed = ds_handler_instance.analyze_dataset(dataset=dataset,
                                                                               analyses=dataset_analysis,
-                                                                              analysis_config=ds_conf)
+                                                                              config=ds_conf)
                 for out_image in out_images:
                     create_image(conn=connection,
                                  image_intensities=out_image['image_data'],
@@ -277,7 +277,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, devide_
                  f'{NAMESPACE_ANALYZED}/'
                  'dataset/'
                  'limits_verification/'
-                 f'{analysis_config["MAIN"]["config_version"]}')
+                 f'{analysis_config["MAIN"]["metrics_version"]}')
 
     # dataset_limits_passed['limits'] = list(dict.fromkeys(dataset_limits_passed['limits']))  # Remove duplicates
 

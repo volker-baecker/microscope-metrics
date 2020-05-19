@@ -7,7 +7,9 @@ import numpy as np
 
 
 ## Some useful functions
-
+def convert_SI(val, unit_in, unit_out):
+    si = {'nanometer': 0.000000001, 'micrometer': 0.000001, 'millimeter': 0.001, 'meter': 1.0}
+    return val*si[unit_in.lower()]/si[unit_out.lower()]
 
 # def airy_fun(x, centre, a, exp):  # , amp, bg):
 #     if (x - centre) == 0:
