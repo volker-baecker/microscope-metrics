@@ -1,12 +1,12 @@
 
 from metrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
-from metrics.utils.utils import multi_airy_fun, airy_fun, gaussian_fun, convert_SI
+from metrics.utils.utils import airy_fun, gaussian_fun, convert_SI
 
 import numpy as np
 from skimage.filters import gaussian
 from skimage.feature import peak_local_max
 from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, fsolve
 from statistics import median, mean
 import datetime
 from math import sin, asin, cos
@@ -44,6 +44,23 @@ def _fit_gaussian(profile, guess=None):
 
     fitted_profile = gaussian_fun(x, popt[0], popt[1], popt[2], popt[3])
     fwhm = popt[3] * 2.35482
+
+    return fitted_profile, fwhm
+
+
+def _fit_airy(profile, guess=None):
+    if guess is None:
+        guess = [profile.argmax(), 4 * profile.max()]
+    x = np.linspace(0, profile.shape[0], profile.shape[0], endpoint=False)
+    popt, pcov = curve_fit(airy_fun, x, profile, guess)
+
+    fitted_profile = airy_fun(x, popt[0], popt[1])
+
+    def _f(x):
+        return airy_fun(x, popt[0], popt[1]) - (fitted_profile.max() - fitted_profile.min()) / 2
+    guess = np.array([fitted_profile.argmax() - 1, fitted_profile.argmax() + 1])
+    v = fsolve(_f, guess)
+    fwhm = abs(v[1] - v[0])
 
     return fitted_profile, fwhm
 
@@ -87,9 +104,12 @@ class PSFBeadsAnalyzer(Analyzer):
         z_profile = np.squeeze(image[:, y_focus, x_focus])
 
         # Fitting the profiles
-        x_fitted_profile, x_fwhm = _fit_gaussian(x_profile)
-        y_fitted_profile, y_fwhm = _fit_gaussian(y_profile)
-        z_fitted_profile, z_fwhm = _fit_gaussian(z_profile)
+        x_fitted_profile, x_fwhm = _fit_airy(x_profile)
+        y_fitted_profile, y_fwhm = _fit_airy(y_profile)
+        z_fitted_profile, z_fwhm = _fit_airy(z_profile)
+        # x_fitted_profile, x_fwhm = _fit_gaussian(x_profile)
+        # y_fitted_profile, y_fwhm = _fit_gaussian(y_profile)
+        # z_fitted_profile, z_fwhm = _fit_gaussian(z_profile)
 
         return (z_profile, y_profile, x_profile), \
                (z_fitted_profile, y_fitted_profile, x_fitted_profile), \
@@ -173,6 +193,9 @@ class PSFBeadsAnalyzer(Analyzer):
         pixel_size_units = image['pixel_size_units']
         pixel_size = image['pixel_size']
         min_bead_distance = config.getint('min_distance', fallback=estimate_min_bead_distance(image))
+
+        # Remove all negative intensities. 3D-SIM images contain negative values.
+        np.clip(image['image_data'], a_min=0, a_max=None, out=image['image_data'])
 
         # TODO: validate units
         # TODO: Unify the naming of 'image' across the module
@@ -317,7 +340,7 @@ class PSFBeadsAnalyzer(Analyzer):
         for i, img in enumerate(bead_images):
             out_images.append({'image_data': np.expand_dims(img, axis=(1, 2)),
                                'image_name': f'{image["image_name"]}_bead_{i}',
-                               'image_desc': f'Bead crop.\nSource Image Id: {image["image_id"]}'})
+                               'image_desc': f'PSF bead crop'})
 
         out_rois = []
 
@@ -394,27 +417,6 @@ class PSFBeadsAnalyzer(Analyzer):
                                              description=description))
         return roi_list
 
-
-def _fit(profile, peaks_guess, amp=4, lower_amp=2, upper_amp=5, center_tolerance=1):
-    guess = list()
-    lower_bounds = list()
-    upper_bounds = list()
-    for p in peaks_guess:
-        guess.append(p)  # peak center
-        guess.append(amp)
-        lower_bounds.append(p - center_tolerance)
-        lower_bounds.append(lower_amp)
-        upper_bounds.append(p + center_tolerance)
-        upper_bounds.append(upper_amp)
-
-    x = np.linspace(0, profile.shape[0] - 1, profile.shape[0])
-
-    popt, pcov = curve_fit(multi_airy_fun, x, profile, p0=guess, bounds=(lower_bounds, upper_bounds))
-
-    opt_peaks = popt[::2]
-    opt_amps = [a / 4 for a in popt[1::2]]  # We normalize back the amplitudes to the unity
-
-    return opt_peaks, opt_amps
 
 
 # Calculate 2D FFT

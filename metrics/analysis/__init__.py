@@ -109,6 +109,7 @@ def create_image(conn, image_intensities, image_name, description, dataset, sour
                             range(image_intensities.shape[2])))
     zct_generator = (image_intensities[z, c, t, :, :] for z, c, t in zct_list)
 
+
     new_image = conn.createImageFromNumpySeq(zctPlanes=zct_generator,
                                              imageName=image_name,
                                              sizeZ=image_intensities.shape[0],
@@ -117,6 +118,11 @@ def create_image(conn, image_intensities, image_name, description, dataset, sour
                                              description=description,
                                              dataset=dataset,
                                              sourceImageId=source_image_id)
+
+    # TODO: see with ome why description is not applied
+    img_wrapper = conn.getObject('Image', new_image.getId())
+    img_wrapper.setDescription(description)
+    img_wrapper.save()
 
     if metrics_generated_tag_id is not None:
         tag = conn.getObject('Annotation', metrics_generated_tag_id)
