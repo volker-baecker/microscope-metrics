@@ -286,11 +286,12 @@ class ArgolightAnalyzer(Analyzer):
                  a list of dicts
                  a dict containing table_names and tables
         """
-        profiles, \
-            z_planes, \
-            peak_positions, \
-            peak_heights, \
-            resolution_values, \
+        profiles,               \
+            z_planes,           \
+            peak_positions,     \
+            peak_heights,       \
+            peak_exponents,    \
+            resolution_values,  \
             resolution_indexes, \
             resolution_method = _compute_resolution(image=image['image_data'],
                                                     axis=axis,
@@ -312,10 +313,12 @@ class ArgolightAnalyzer(Analyzer):
         key_values['measured_band'] = config['res_measurement_band']
 
         for ch, indexes in enumerate(resolution_indexes):
-            key_values[f'peak_positions_ch{ch:02d}'] = [(peak_positions[ch][ind].item(), peak_positions[ch][ind + 1].item())
-                                                       for ind in indexes]
-            key_values[f'peak_heights_ch{ch:02d}'] = [(peak_heights[ch][ind].item(), peak_heights[ch][ind + 1].item()) for ind
-                                                     in indexes]
+            key_values[f'peak_positions_ch{ch:02d}'] = \
+                [(peak_positions[ch][ind].item(), peak_positions[ch][ind + 1].item()) for ind in indexes]
+            key_values[f'peak_heights_ch{ch:02d}'] = \
+                [(peak_heights[ch][ind].item(), peak_heights[ch][ind + 1].item()) for ind in indexes]
+            key_values[f'peak_exponents_ch{ch:02d}'] = \
+                [(peak_exponents[ch][ind].item(), peak_exponents[ch][ind + 1].item()) for ind in indexes]
             key_values[f'focus_ch{ch:02d}'] = z_planes[ch].item()
 
         out_images = []
@@ -369,31 +372,35 @@ def _profile_to_table(profile):
     return table
 
 
-def _fit(profile, peaks_guess, amp=4, lower_amp=2, upper_amp=5, center_tolerance=1):
+def _fit(profile, peaks_guess, amp=4, exp=2, lower_amp=2, upper_amp=5, lower_exp=1, upper_exp=4, center_tolerance=1):
     guess = list()
     lower_bounds = list()
     upper_bounds = list()
     for p in peaks_guess:
         guess.append(p)  # peak center
-        guess.append(amp)
+        guess.append(amp)  # peak amplitude
+        guess.append(exp)  # exponent
         lower_bounds.append(p - center_tolerance)
         lower_bounds.append(lower_amp)
+        lower_bounds.append(lower_exp)
         upper_bounds.append(p + center_tolerance)
         upper_bounds.append(upper_amp)
+        upper_bounds.append(upper_exp)
 
     x = np.linspace(0, profile.shape[0], profile.shape[0])
 
     popt, pcov = curve_fit(multi_airy_fun, x, profile, p0=guess, bounds=(lower_bounds, upper_bounds))
 
-    opt_peaks = popt[::2]
+    opt_peaks = popt[::3]
     # opt_amps = [a / 4 for a in popt[1::2]]  # We normalize back the amplitudes to the unity
-    opt_amps = popt[1::2]
+    opt_amps = popt[1::3]
+    opt_exps = popt[2::3]
 
     fitted_profiles = np.zeros((len(peaks_guess), profile.shape[0]))
-    for i, (centre, amplitude) in enumerate(zip(opt_peaks, opt_amps)):
-        fitted_profiles[i, :] = airy_fun(x, centre=centre, amp=amplitude)
+    for i, (c, a, e) in enumerate(zip(opt_peaks, opt_amps, opt_exps)):
+        fitted_profiles[i, :] = airy_fun(x, c, a, e)
 
-    return opt_peaks, opt_amps, fitted_profiles
+    return opt_peaks, opt_amps, opt_exps, fitted_profiles
 
 
 def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fitting=True, do_angle_refinement=False):
@@ -430,7 +437,7 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
                                             prominence=prominence / 4,
                                             )
 
-    # From the properties we are interested in teh amplitude
+    # From the properties we are interested in the amplitude
     # peak_heights = [h for h in properties['peak_heights']]
     ray_filtered_peak_pos = []
     ray_filtered_peak_heights = []
@@ -444,7 +451,7 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     peak_heights = ray_filtered_peak_heights
 
     if do_fitting:
-        peak_positions, peak_heights, fitted_profiles = _fit(normalized_profile, peak_positions)
+        peak_positions, peak_heights, peak_exponents, fitted_profiles = _fit(normalized_profile, peak_positions)
         normalized_profile = np.append(np.expand_dims(normalized_profile, 0), fitted_profiles, axis=0)
 
     # Find the closest peaks to return it as a measure of resolution
@@ -452,7 +459,7 @@ def _compute_channel_resolution(channel, axis, prominence, measured_band, do_fit
     res = min(peaks_distances)  # TODO: capture here the case where there are no peaks!
     res_indices = [i for i, x in enumerate(peaks_distances) if x == res]
 
-    return normalized_profile, z_focus, peak_positions, peak_heights, res, res_indices
+    return normalized_profile, z_focus, peak_positions, peak_heights, peak_exponents, res, res_indices
 
 
 def _compute_resolution(image, axis, measured_band, prominence, do_angle_refinement=False):
@@ -460,24 +467,26 @@ def _compute_resolution(image, axis, measured_band, prominence, do_angle_refinem
     z_planes = list()
     peaks_positions = list()
     peaks_heights = list()
+    peaks_exponents = list()
     resolution_values = list()
     resolution_indexes = list()
     resolution_method = 'rayleigh'
 
     for c in range(image.shape[1]):  # TODO: Deal with Time here
-        prof, zp, pk_pos, pk_heights, res, res_ind = _compute_channel_resolution(channel=np.squeeze(image[:, c, ...]),
-                                                                                 axis=axis,
-                                                                                 prominence=prominence,
-                                                                                 measured_band=measured_band,
-                                                                                 do_angle_refinement=do_angle_refinement)
+        prof, zp, pk_pos, pk_heights, pk_exps, res, res_ind = _compute_channel_resolution(channel=np.squeeze(image[:, c, ...]),
+                                                                                          axis=axis,
+                                                                                          prominence=prominence,
+                                                                                          measured_band=measured_band,
+                                                                                          do_angle_refinement=do_angle_refinement)
         profiles.append(prof)
         z_planes.append(zp)
         peaks_positions.append(pk_pos)
         peaks_heights.append(pk_heights)
+        peaks_exponents.append(pk_exps)
         resolution_values.append(res)
         resolution_indexes.append(res_ind)
 
-    return profiles, z_planes, peaks_positions, peaks_heights, resolution_values, resolution_indexes, resolution_method
+    return profiles, z_planes, peaks_positions, peaks_heights, peaks_exponents, resolution_values, resolution_indexes, resolution_method
 
 # Calculate 2D FFT
 # slice_2d = raw_img[17, ...].reshape([1, n_channels, x_size, y_size])
