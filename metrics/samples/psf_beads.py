@@ -345,8 +345,6 @@ class PSFBeadsAnalyzer(Analyzer):
         out_rois = []
 
         # Populate the data
-        key_values['analysis_date_time'] = str(datetime.datetime.now())
-
         for i, (pos, fwhm, bead_image) in enumerate(zip(positions, fwhm_values, bead_images)):
             for prop in properties:
                 prop['data'].extend(prop['getter'](i, pos, fwhm, bead_image))

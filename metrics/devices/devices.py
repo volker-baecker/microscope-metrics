@@ -565,7 +565,7 @@ class WideFieldMicroscope(Microscope):
     #     # Images from Interface come in zctyx dimensions and locally as zcxy.
     #     # The easiest for the moment is to remove t
     #     if raw_img.shape[2] == 1:
-    #         raw_img = np.squeeze(raw_img, 2)  # TODO: Fix this time dimension.
+    #         raw_img = np.squeeze(raw_img, 2)
     #     else:
     #         raise Exception("Image has a time dimension. Time is not yet implemented for this analysis")
     #     pixel_size = interface.get_pixel_size(image)
@@ -591,7 +591,7 @@ class WideFieldMicroscope(Microscope):
     #         module_logger.warning(f'Image {image.getName()} does not have a declared channels settings.'
     #                               f'Falling back to metadata stored in image name.')
     #         excitation_waves = [_get_metadata_from_name(image_name, '_ex-', '_',
-    #                                                     float)]  # TODO: make this work with more than one channel
+    #                                                     float)]
     #         emission_waves = [_get_metadata_from_name(image_name, '_em-', '_', float)]
     #
     #     return {'image_data': raw_img,

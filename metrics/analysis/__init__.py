@@ -183,7 +183,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, device_
                                          description=f'Source Image Id:{image.getId()}\n{out_image["image_desc"]}',
                                          dataset=dataset,
                                          source_image_id=image.getId(),
-                                         metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics analysis_config
+                                         metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))
 
                         for out_roi in out_rois:
                             create_roi(conn=connection,
@@ -206,8 +206,14 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, device_
                                             namespace=namespace)
 
                         for out_dict in out_dicts:
+                            labeled_out_dict = {'analysis_date_time': f'{datetime.now()}',
+                                                'sample_type': f'{handler.get_module()}',
+                                                'analysis_type': f'{analysis}'
+                                                }
+                            labeled_out_dict.update(out_dict)
+
                             save_data_key_values(conn=connection,
-                                                 key_values=out_dict,
+                                                 key_values=labeled_out_dict,
                                                  interface_obj=image,
                                                  namespace=namespace)
 
@@ -247,7 +253,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, device_
                                  image_name=out_image['image_name'],
                                  description=out_image["image_desc"],
                                  dataset=dataset,
-                                 metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))  # TODO: Must go into metrics analysis_config
+                                 metrics_generated_tag_id=analysis_config['MAIN'].getint('metrics_generated_tag_id'))
 
                 for out_tag in out_tags:
                     pass  # TODO implement interface to save tags
@@ -303,7 +309,7 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, device_
                          namespace=namespace)
 
     try:
-        if script_params['Comment'] != '':  # TODO: This is throwing an error if no comment
+        if 'Comment' in script_params.keys() and script_params['Comment'] != '':
             module_logger.info('Adding comment to Dataset.')
             namespace = (f'{NAMESPACE_PREFIX}/'
                          f'{NAMESPACE_ANALYZED}/'

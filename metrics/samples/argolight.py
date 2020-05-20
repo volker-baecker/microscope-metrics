@@ -199,7 +199,6 @@ class ArgolightAnalyzer(Analyzer):
         out_rois = list()
 
         # Populate the data
-        key_values['analysis_date_time'] = str(datetime.datetime.now())
 
         for ch, ch_spot_prop in enumerate(spots_properties):
 
@@ -301,8 +300,6 @@ class ArgolightAnalyzer(Analyzer):
         resolution_values = [x * image['pixel_size'][axis] for x in resolution_values]
 
         key_values = dict()
-
-        key_values['analysis_date_time'] = str(datetime.datetime.now())
 
         for ch, res in enumerate(resolution_values):
             key_values[f'ch{ch:02d}_{resolution_method}_resolution'] = res.item()
