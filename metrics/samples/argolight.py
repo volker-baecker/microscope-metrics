@@ -250,7 +250,6 @@ class ArgolightAnalyzer(Analyzer):
         out_rois = list()
 
         # Populate the data
-
         for ch, ch_spot_prop in enumerate(spots_properties):
 
             key_values[f"nr_of_spots_ch{ch:02d}"] = len(ch_spot_prop)
@@ -465,7 +464,7 @@ class ArgolightAnalyzer(Analyzer):
 
 
 class ArgolightReporter(Reporter):
-    """Reporter subclass to produce Argolight sample reports"""
+    """Reporter subclass to produce Argolight sample figures"""
 
     def __init__(self):
         image_report_to_func = {
