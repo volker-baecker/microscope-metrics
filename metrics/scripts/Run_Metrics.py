@@ -102,7 +102,6 @@ def run_script_local():
         device_config = MetricsConfig()
         device_config.read(analysis_config.get('MAIN', 'device_conf_file_name'))
 
-
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
         for dataset in datasets:
@@ -121,11 +120,6 @@ def run_script_local():
 
 
 def run_script():
-
-    device_config = MetricsConfig()
-    analysis_config = MetricsConfig()
-    # We are currently merging main config and analysis config
-    analysis_config.read('main_config.ini')  # TODO: read main config from somewhere in the installation
 
     client = scripts.client(
         'Run_Metrics.py',
@@ -174,6 +168,12 @@ def run_script():
         datasets = conn.getObjects('Dataset', script_params['IDs'])  # generator of datasets
 
         for dataset in datasets:
+            device_config = MetricsConfig()
+            analysis_config = MetricsConfig()
+
+            # We are currently merging main config and analysis config
+            analysis_config.read('/etc/omero_metrics/main_config.ini')
+
             # Get the project / microscope
             microscope_prj = dataset.getParent()  # We assume one project per dataset
 
@@ -203,6 +203,6 @@ def run_script():
 
 
 if __name__ == '__main__':
-    # run_script()
-    run_script_local()
+    run_script()
+    # run_script_local()
 

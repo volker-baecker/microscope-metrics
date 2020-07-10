@@ -176,6 +176,6 @@ def run_script():
 
 
 if __name__ == '__main__':
-    # run_script()
-    run_script_local()
+    run_script()
+    # run_script_local()
 
