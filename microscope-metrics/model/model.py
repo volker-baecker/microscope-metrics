@@ -1,7 +1,7 @@
 """This module takes care of the data model used by microscope-metrics.
 It creates a few classes representing input data and output data
 """
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Union
 import numpy as np
 
@@ -100,7 +100,7 @@ class MetricsOutput:
     def get_key_values(self):
         return self._get_properties_by_type('KeyValues')
 
-    def get_Tables(self):
+    def get_tables(self):
         return self._get_properties_by_type('Table')
 
     def get_comments(self):
@@ -118,7 +118,7 @@ class OutputProperty(ABC):
         :return: str
         """
         return f'Name: {self.name}\n' \
-               f'Type: {self.get_type()}\n' \
+               f'Type: {self.type}\n' \
                f'Description: {self.description}'
 
     @property
@@ -436,5 +436,3 @@ class Comment(OutputProperty):
             self.comment = comment
         else:
             raise TypeError('Comment feature must be a string')
-
-
