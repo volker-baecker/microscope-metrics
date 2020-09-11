@@ -1,13 +1,12 @@
 # Main samples module defining the sample superclass
 
-# class Parameter:
+from abc import ABC
 
 from types import SimpleNamespace
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
 import omero.gateway as gw  # TODO: fix this has to go into interface
-
 
 
 class Configurator:
@@ -33,7 +32,7 @@ class Configurator:
         pass
 
 
-class Analyzer:
+class Analyzer(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
     def __init__(self, config, image_analysis_to_func={}, dataset_analysis_to_func={}, microscope_analysis_to_func={}):
@@ -48,7 +47,7 @@ class Analyzer:
         :param microscope_analysis_to_func: dictionary mapping microscope analyses strings to functions
         """
         self.config = config
-        self.image_analysis_to_func = image_analysis_to_func
+        self.image_analysis_to_func = {}
         self.dataset_analysis_to_func = dataset_analysis_to_func
         self.microscope_analysis_to_func = microscope_analysis_to_func
 
@@ -58,6 +57,14 @@ class Analyzer:
         :returns a string with the module name
         """
         return cls.__module__.split(sep='.')[-1]
+
+    def register_image_analysis(self, func):
+        """Decorator to register functions that profess image analysis"""
+        func_name = func.__name__
+        if func_name[:8] == 'analyze_':
+            self.image_analysis_to_func[func_name[8:]] = func
+
+        return func
 
     def validate_dataset(self):
         """Override this method to integrate all the logic of dataset validation"""

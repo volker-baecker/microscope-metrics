@@ -1,4 +1,4 @@
-"""This module takes care of the data model used by microscope-metrics.
+"""This module takes care of the data model used by microscopemetrics.
 It creates a few classes representing input data and output data
 """
 from abc import ABC
@@ -63,7 +63,7 @@ class MetricsImage:
 
 
 class MetricsOutput:
-    """This class is used by microscope-metrics to return the output of an analysis.
+    """This class is used by microscopemetrics to return the output of an analysis.
     """
     def __init__(self, description: str = None):
         self.description = description

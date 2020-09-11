@@ -7,7 +7,7 @@ from metrics.analysis.tools import (
     compute_distances_matrix,
     compute_spots_properties,
 )
-from metrics.utils.utils import multi_airy_fun, airy_fun
+from ..utilities.utilities import multi_airy_fun, airy_fun
 
 # from metrics.plot import plot
 
@@ -19,7 +19,7 @@ from statistics import median
 import datetime
 
 # Import sample superclass
-from metrics.samples.samples import Analyzer, Configurator, Reporter
+from .samples import Analyzer, Configurator, Reporter
 
 # Creating logging services
 import logging
@@ -46,14 +46,15 @@ class ArgolightAnalyzer(Analyzer):
     - Defines the creation of reports"""
 
     def __init__(self, config=None):
+        super().__init__(config=config)
         image_analysis_to_func = {
             "spots": self.analyze_spots,
             "vertical_resolution": self.analyze_vertical_resolution,
             "horizontal_resolution": self.analyze_horizontal_resolution,
         }
         self.configurator = ArgolightConfigurator(config)
-        super().__init__(config=config, image_analysis_to_func=image_analysis_to_func)
 
+    @register_image_analysis
     def analyze_spots(self, image, config):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
 
