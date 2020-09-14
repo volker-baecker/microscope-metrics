@@ -1,8 +1,8 @@
-from .samples import plt, cm
+from .samples import *
 
 from scipy.interpolate import griddata
 
-from metrics.analysis.tools import (
+from microscopemetrics.analysis.tools import (
     segment_image,
     compute_distances_matrix,
     compute_spots_properties,
@@ -17,9 +17,6 @@ from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from statistics import median
 import datetime
-
-# Import sample superclass
-from .samples import Analyzer, Configurator, Reporter
 
 # Creating logging services
 import logging
@@ -47,14 +44,14 @@ class ArgolightAnalyzer(Analyzer):
 
     def __init__(self, config=None):
         super().__init__(config=config)
-        image_analysis_to_func = {
-            "spots": self.analyze_spots,
-            "vertical_resolution": self.analyze_vertical_resolution,
-            "horizontal_resolution": self.analyze_horizontal_resolution,
-        }
+        # image_analysis_to_func = {
+        #     "spots": self.analyze_spots,
+        #     "vertical_resolution": self.analyze_vertical_resolution,
+        #     "horizontal_resolution": self.analyze_horizontal_resolution,
+        # }
         self.configurator = ArgolightConfigurator(config)
 
-    @register_image_analysis
+    @Analyzer.register.image_analysis
     def analyze_spots(self, image, config):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
 
@@ -338,10 +335,12 @@ class ArgolightAnalyzer(Analyzer):
 
         return out_images, out_rois, out_tags, out_dicts, out_tables
 
+    @Analyzer.register.image_analysis()
     def analyze_vertical_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
         return self._analyze_resolution(image=image, axis=1, config=config)
 
+    @Analyzer.register.image_analysis()
     def analyze_horizontal_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
         return self._analyze_resolution(image=image, axis=2, config=config)

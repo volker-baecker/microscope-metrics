@@ -1,7 +1,7 @@
 
 import numpy as np
 from itertools import product
-from metrics.interface import omero as interface
+# from metrics.interface import omero as interface
 from datetime import datetime
 import logging
 
@@ -12,14 +12,14 @@ import logging
 # importlib.import_module('.argolight', package='metrics.samples')
 
 # import dataset analysis
-from metrics.samples.dataset import DatasetConfigurator
+from microscopemetrics.samples.dataset import DatasetConfigurator
 
 # import devices
-from metrics.devices import devices
+from microscopemetrics.devices import devices
 
 # import samples
-from metrics.samples.argolight import ArgolightConfigurator
-from metrics.samples.psf_beads import PSFBeadsConfigurator
+from microscopemetrics.samples.argolight import ArgolightConfigurator
+from microscopemetrics.samples.psf_beads import PSFBeadsConfigurator
 
 SAMPLE_CONFIGURATORS = [ArgolightConfigurator,
                         PSFBeadsConfigurator]

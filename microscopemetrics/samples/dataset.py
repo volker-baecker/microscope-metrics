@@ -2,7 +2,7 @@
 from datetime import datetime
 
 # Import sample superclass
-from metrics.samples.samples import Analyzer, Configurator
+from microscopemetrics.samples.samples import Analyzer, Configurator
 
 # Creating logging services
 import logging

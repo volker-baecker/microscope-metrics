@@ -4,7 +4,7 @@ from collections import Iterable
 from math import sin, asin, cos
 
 
-from metrics.interface import omero as interface
+# from microscopemetrics.interface import omero as interface
 
 # Creating logging services
 import logging

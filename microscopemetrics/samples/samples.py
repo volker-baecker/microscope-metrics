@@ -2,11 +2,33 @@
 
 from abc import ABC
 
-from types import SimpleNamespace
-import matplotlib.pyplot as plt
-from matplotlib import cm
 
-import omero.gateway as gw  # TODO: fix this has to go into interface
+class AnalysisRegistry:
+    def __init__(self):
+        self._image_analysis_registry = {}
+        self._dataset_analysis_registry = {}
+        self._progression_analysis_registry = {}
+
+    def image_analysis(self):
+        """Decorator to register functions that profess an analysis on a single image"""
+        def wrapper(fn, *args, **kwargs):
+            self._image_analysis_registry[fn.__name__] = fn
+            return fn
+        return wrapper
+
+    def dataset_analysis(self):
+        """Decorator to register functions that profess analysis on a dataset (multiple images)"""
+        def wrapper(fn, *args, **kwargs):
+            self._dataset_analysis_registry[fn.__name__] = fn
+            return fn
+        return wrapper
+
+    def progression_analysis(self):
+        """Decorator to register functions that profess an analysis on the progression of a dataset over time"""
+        def wrapper(fn, *args, **kwargs):
+            self._progression_analysis_registry[fn.__name__] = fn
+            return fn
+        return wrapper
 
 
 class Configurator:
@@ -14,13 +36,13 @@ class Configurator:
     defines configuration parameters necessary for the different analyses. You should subclass this when you create a
     new sample.
     """
+
     # The configuration section has to be defined for every subclass
     CONFIG_SECTION: str = None
     ANALYSES = list()
 
     def __init__(self, config):
         self.config = config
-        # self.validate_config()
 
     @classmethod
     def register_sample_analyzer(cls, sample_class):
@@ -35,36 +57,26 @@ class Configurator:
 class Analyzer(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
-    def __init__(self, config, image_analysis_to_func={}, dataset_analysis_to_func={}, microscope_analysis_to_func={}):
+
+    register = AnalysisRegistry()
+
+    def __init__(self, config):
         """Add to the init subclass a dictionary mapping analyses strings to functions
         :type config: analysis_config section
         :param config: analysis_config section specifying sample options
-        :type image_analysis_to_func: dict
-        :param image_analysis_to_func: dictionary mapping image analyses strings to functions
-        :type dataset_analysis_to_func: dict
-        :param dataset_analysis_to_func: dictionary mapping dataset analyses strings to functions
-        :type microscope_analysis_to_func: dict
-        :param microscope_analysis_to_func: dictionary mapping microscope analyses strings to functions
         """
         self.config = config
-        self.image_analysis_to_func = {}
-        self.dataset_analysis_to_func = dataset_analysis_to_func
-        self.microscope_analysis_to_func = microscope_analysis_to_func
+
+    @classmethod
+    def register_image_analysis(cls):
+        return cls.register.image_analysis
 
     @classmethod
     def get_module(cls):
         """Returns the module name of the class. Without path and extension.
         :returns a string with the module name
         """
-        return cls.__module__.split(sep='.')[-1]
-
-    def register_image_analysis(self, func):
-        """Decorator to register functions that profess image analysis"""
-        func_name = func.__name__
-        if func_name[:8] == 'analyze_':
-            self.image_analysis_to_func[func_name[8:]] = func
-
-        return func
+        return cls.__module__.split(sep=".")[-1]
 
     def validate_dataset(self):
         """Override this method to integrate all the logic of dataset validation"""
@@ -72,14 +84,16 @@ class Analyzer(ABC):
 
     def _verify_limits(self, key_values, config, object_ref):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the analysis_config"""
-        limits_passed = {'uhl_passed': True,
-                         'lhl_passed': True,
-                         'usl_passed': True,
-                         'lsl_passed': True,
-                         'limits': list(),
-                         'sources': list()}
+        limits_passed = {
+            "uhl_passed": True,
+            "lhl_passed": True,
+            "usl_passed": True,
+            "lsl_passed": True,
+            "limits": list(),
+            "sources": list(),
+        }
         for option, limit in config.items():
-            if option[-4:] in ['_uhl', '_lhl', '_usl', '_lsl']:
+            if option[-4:] in ["_uhl", "_lhl", "_usl", "_lsl"]:
                 key = option[:-4]
                 try:
                     value = key_values[key]
@@ -87,48 +101,48 @@ class Analyzer(ABC):
                     continue
 
             # Evaluate upper hard limits
-            if option.endswith('_uhl'):
+            if option.endswith("_uhl"):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value >= limit:
-                    key_values[key + '_uhl_passed'] = 'No'
-                    limits_passed['uhl_passed'] = False
-                    limits_passed['limits'].append(option)
-                    limits_passed['sources'].append(object_ref)
+                    key_values[key + "_uhl_passed"] = "No"
+                    limits_passed["uhl_passed"] = False
+                    limits_passed["limits"].append(option)
+                    limits_passed["sources"].append(object_ref)
                 else:
-                    key_values[key + '_uhl_passed'] = 'Yes'
+                    key_values[key + "_uhl_passed"] = "Yes"
 
             # Evaluate upper soft limits
-            elif option.endswith('_usl'):
+            elif option.endswith("_usl"):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value >= limit:
-                    key_values[key + '_usl_passed'] = 'No'
-                    limits_passed['usl_passed'] = False
-                    limits_passed['limits'].append(option)
-                    limits_passed['sources'].append(object_ref)
+                    key_values[key + "_usl_passed"] = "No"
+                    limits_passed["usl_passed"] = False
+                    limits_passed["limits"].append(option)
+                    limits_passed["sources"].append(object_ref)
                 else:
-                    key_values[key + '_usl_passed'] = 'Yes'
+                    key_values[key + "_usl_passed"] = "Yes"
 
             # Evaluate lower hard limits
-            elif option.endswith('_lhl'):
+            elif option.endswith("_lhl"):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value <= limit:
-                    key_values[key + '_lhl_passed'] = 'No'
-                    limits_passed['lhl_passed'] = False
-                    limits_passed['limits'].append(option)
-                    limits_passed['sources'].append(object_ref)
+                    key_values[key + "_lhl_passed"] = "No"
+                    limits_passed["lhl_passed"] = False
+                    limits_passed["limits"].append(option)
+                    limits_passed["sources"].append(object_ref)
                 else:
-                    key_values[key + '_lhl_passed'] = 'Yes'
+                    key_values[key + "_lhl_passed"] = "Yes"
 
             # Evaluate lower soft limits
-            elif option.endswith('_lsl'):
+            elif option.endswith("_lsl"):
                 limit = self._evaluate_limit(key_values, limit)
                 if limit is not None and value <= limit:
-                    key_values[key + '_lsl_passed'] = 'No'
-                    limits_passed['lsl_passed'] = False
-                    limits_passed['limits'].append(option)
-                    limits_passed['sources'].append(object_ref)
+                    key_values[key + "_lsl_passed"] = "No"
+                    limits_passed["lsl_passed"] = False
+                    limits_passed["limits"].append(option)
+                    limits_passed["sources"].append(object_ref)
                 else:
-                    key_values[key + '_lsl_passed'] = 'Yes'
+                    key_values[key + "_lsl_passed"] = "Yes"
 
         return key_values, limits_passed
 
@@ -139,7 +153,7 @@ class Analyzer(ABC):
             limit = eval(expression)
         except NameError as e:
             limit = None
-            raise e(f'Could not evaluate expression {expression} as a limit')
+            raise e(f"Could not evaluate expression {expression} as a limit")
         finally:
             return limit
 
@@ -169,13 +183,22 @@ class Analyzer(ABC):
             analyses = [analyses]
 
         for analysis in analyses:
-            images, rois, tags, dicts, editables, tables = self.dataset_analysis_to_func[analysis](dataset, config)
+            (
+                images,
+                rois,
+                tags,
+                dicts,
+                editables,
+                tables,
+            ) = self.dataset_analysis_to_func[analysis](dataset, config)
             out_images.extend(images)
             out_tags.extend(tags)
             if verify_limits:
                 validated_dicts = []
                 for d in dicts:
-                    validated_dict, passed = self._verify_limits(d, config, f'Dataset_ID:{dataset.getId()}')
+                    validated_dict, passed = self._verify_limits(
+                        d, config, f"Dataset_ID:{dataset.getId()}"
+                    )
                     validated_dicts.append(validated_dict)
                     limits_passed.append(passed)
                 out_dicts.extend(validated_dicts)
@@ -212,14 +235,18 @@ class Analyzer(ABC):
             analyses = [analyses]
 
         for analysis in analyses:
-            images, rois, tags, dicts, tables = self.image_analysis_to_func[analysis](image, config)
+            images, rois, tags, dicts, tables = self.image_analysis_to_func[analysis](
+                image, config
+            )
             out_images.extend(images)
             out_rois.extend(rois)
             out_tags.extend(tags)
             if verify_limits:
                 validated_dicts = []
                 for d in dicts:
-                    validated_dict, passed = self._verify_limits(d, config, f'Image_ID:{image["image_id"]}')
+                    validated_dict, passed = self._verify_limits(
+                        d, config, f'Image_ID:{image["image_id"]}'
+                    )
                     validated_dicts.append(validated_dict)
                     limits_passed.append(passed)
                 out_dicts.extend(validated_dicts)
@@ -232,26 +259,30 @@ class Analyzer(ABC):
     @staticmethod
     def _create_roi(shapes, name=None, description=None):
         """A helper function to create ROIs"""
-        roi = {'name': name,
-               'desc': description,
-               'shapes': shapes}
+        roi = {"name": name, "desc": description, "shapes": shapes}
         return roi
 
     @staticmethod
     def _create_shape(shape_type, **kwargs):
         """A helper function to create roi shapes"""
-        if shape_type in ['point', 'line', 'rectangle', 'ellipse', 'polygon']:
-            shape = {'type': shape_type,
-                     'args': kwargs}
+        if shape_type in ["point", "line", "rectangle", "ellipse", "polygon"]:
+            shape = {"type": shape_type, "args": kwargs}
             return shape
         else:
-            raise ValueError('Cannot recognize that type of shape')
+            raise ValueError("Cannot recognize that type of shape")
 
 
 class Reporter:
     """This is the superclass taking care of creating reports for a particular type of sample.
     You should subclass this when you create a new sample."""
-    def __init__(self, config, image_report_to_func={}, dataset_report_to_func={}, microscope_report_to_func={}):
+
+    def __init__(
+        self,
+        config,
+        image_report_to_func={},
+        dataset_report_to_func={},
+        microscope_report_to_func={},
+    ):
         """Add to the init subclass a dictionary mapping analyses strings to functions
         :type config: analysis_config section
         :param config: analysis_config section specifying sample options
@@ -276,19 +307,18 @@ class Reporter:
     def produce_device_report(self, device):
         pass
 
-    # Helper functions
-    def get_tables(self, omero_object, namespace_start='', name_filter=''):
-        tables_list = list()
-        resources = omero_object._conn.getSharedResources()
-        for ann in omero_object.listAnnotations():
-            if isinstance(ann, gw.FileAnnotationWrapper) and \
-                    ann.getNs().startswith(namespace_start) and \
-                    name_filter in ann.getFileName():
-                table_file = omero_object._conn.getObject("OriginalFile", attributes={'name': ann.getFileName()})
-                table = resources.openTable(table_file._obj)
-                tables_list.append(table)
-
-        return tables_list
-
-
-
+    # TODO: move this where it belongs
+    # # Helper functions
+    # def get_tables(self, omero_object, namespace_start='', name_filter=''):
+    #     tables_list = list()
+    #     resources = omero_object._conn.getSharedResources()
+    #     for ann in omero_object.listAnnotations():
+    #         if isinstance(ann, gw.FileAnnotationWrapper) and \
+    #                 ann.getNs().startswith(namespace_start) and \
+    #                 name_filter in ann.getFileName():
+    #             table_file = omero_object._conn.getObject("OriginalFile", attributes={'name': ann.getFileName()})
+    #             table = resources.openTable(table_file._obj)
+    #             tables_list.append(table)
+    #
+    #     return tables_list
+    #
