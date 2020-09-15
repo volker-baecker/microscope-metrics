@@ -2,33 +2,23 @@
 
 from abc import ABC
 
+# We are defining some global dictionaries to register the different analysis types
+IMAGE_ANALYSIS_REGISTRY = {}
+DATASET_ANALYSIS_REGISTRY = {}
+PROGRESSION_ANALYSIS_REGISTRY = {}
 
-class AnalysisRegistry:
-    def __init__(self):
-        self._image_analysis_registry = {}
-        self._dataset_analysis_registry = {}
-        self._progression_analysis_registry = {}
+# Decorators to register exposed analysis functions
+def register_image_analysis(fn):
+    IMAGE_ANALYSIS_REGISTRY[fn.__name__] = fn
+    return fn
 
-    def image_analysis(self):
-        """Decorator to register functions that profess an analysis on a single image"""
-        def wrapper(fn, *args, **kwargs):
-            self._image_analysis_registry[fn.__name__] = fn
-            return fn
-        return wrapper
+def register_dataset_analysis(fn):
+    DATASET_ANALYSIS_REGISTRY[fn.__name__] = fn
+    return fn
 
-    def dataset_analysis(self):
-        """Decorator to register functions that profess analysis on a dataset (multiple images)"""
-        def wrapper(fn, *args, **kwargs):
-            self._dataset_analysis_registry[fn.__name__] = fn
-            return fn
-        return wrapper
-
-    def progression_analysis(self):
-        """Decorator to register functions that profess an analysis on the progression of a dataset over time"""
-        def wrapper(fn, *args, **kwargs):
-            self._progression_analysis_registry[fn.__name__] = fn
-            return fn
-        return wrapper
+def register_progression_analysis(fn):
+    PROGRESSION_ANALYSIS_REGISTRY[fn.__name__] = fn
+    return fn
 
 
 class Configurator:
@@ -57,19 +47,12 @@ class Configurator:
 class Analyzer(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
-
-    register = AnalysisRegistry()
-
     def __init__(self, config):
         """Add to the init subclass a dictionary mapping analyses strings to functions
         :type config: analysis_config section
         :param config: analysis_config section specifying sample options
         """
         self.config = config
-
-    @classmethod
-    def register_image_analysis(cls):
-        return cls.register.image_analysis
 
     @classmethod
     def get_module(cls):

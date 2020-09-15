@@ -1,7 +1,13 @@
+# Import sample infrastructure
 from .samples import *
 
+# Import analysis tools
+import numpy as np
+from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
+from scipy.signal import find_peaks
+from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
-
+from statistics import median
 from microscopemetrics.analysis.tools import (
     segment_image,
     compute_distances_matrix,
@@ -9,23 +15,13 @@ from microscopemetrics.analysis.tools import (
 )
 from ..utilities.utilities import multi_airy_fun, airy_fun
 
-# from metrics.plot import plot
-
-import numpy as np
-from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
-from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
-from statistics import median
-import datetime
-
 # Creating logging services
 import logging
-
-module_logger = logging.getLogger("metrics.samples.argolight")
+module_logger = logging.getLogger("microscopemetrics.samples.argolight")
 
 
 class ArgolightConfigurator(Configurator):
-    """This class handles the configuration properties of the argolighe sample
+    """This class handles the configuration properties of the argolight sample
     - Defines configuration properties
     - Helps in the generation of analysis_config files"""
 
@@ -51,7 +47,7 @@ class ArgolightAnalyzer(Analyzer):
         # }
         self.configurator = ArgolightConfigurator(config)
 
-    @Analyzer.register.image_analysis
+    @register_image_analysis
     def analyze_spots(self, image, config):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
 
@@ -335,12 +331,12 @@ class ArgolightAnalyzer(Analyzer):
 
         return out_images, out_rois, out_tags, out_dicts, out_tables
 
-    @Analyzer.register.image_analysis()
+    @register_image_analysis
     def analyze_vertical_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
         return self._analyze_resolution(image=image, axis=1, config=config)
 
-    @Analyzer.register.image_analysis()
+    @register_image_analysis
     def analyze_horizontal_resolution(self, image, config):
         """A intermediate function to specify the axis to be analyzed"""
         return self._analyze_resolution(image=image, axis=2, config=config)
