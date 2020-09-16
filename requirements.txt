@@ -1,6 +1,7 @@
 # running requirements
 scikit-image
 scipy
+typeguard
 
 # development requirements
 pytest

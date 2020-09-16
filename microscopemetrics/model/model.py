@@ -2,21 +2,15 @@
 It creates a few classes representing input data and output data
 """
 from abc import ABC
-from typing import Union
-
-
-class Metadata:
-    def __init__(self, name, desc, typ):
-        self.name = name
-        self.desc = desc
-        self.type = typ
+from typing import Union, List, Dict
+from typeguard import check_type
 
 
 class MetricsDataset:
     """This class represents a single dataset including the intensity data and the metadata.
     Instances of this class are used by the analysis routines to get the necessary data to perform the analysis"""
 
-    def __init__(self, data: dict = None, metadata: dict = None):
+    def __init__(self, data: dict = None, metadata: dict = {}):
         if data is not None:
             self.data = data
         else:
@@ -46,6 +40,12 @@ class MetricsDataset:
         else:
             raise TypeError('Metadata must be a dictionary')
 
+    def metadata_add(self, name, desc, type, value):
+        check_type(name, value, type)
+        self._metadata.update[name] = {'desc': desc,
+                                       'type': type,
+                                       'value': value}
+
     def get_metadata(self, metadata: Union[str, list]):
         if isinstance(metadata, str):
             try:
@@ -53,7 +53,7 @@ class MetricsDataset:
             except KeyError as e:
                 raise KeyError(f'Metadatum "{metadata}" does not exist') from e
         elif isinstance(metadata, list):
-            return [self.get_metadata(m) for m in metadata]
+            return {k: self.get_metadata(k) for k in metadata}
         else:
             raise TypeError('get_metadata requires a string or list of strings')
 
