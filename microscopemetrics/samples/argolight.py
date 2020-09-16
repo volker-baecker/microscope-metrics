@@ -8,16 +8,8 @@ from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
 from statistics import median
-from microscopemetrics.analysis.tools import (
-    segment_image,
-    compute_distances_matrix,
-    compute_spots_properties,
-)
+from microscopemetrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from ..utilities.utilities import multi_airy_fun, airy_fun
-
-# Creating logging services
-import logging
-module_logger = logging.getLogger("microscopemetrics.samples.argolight")
 
 
 class ArgolightConfigurator(Configurator):
@@ -26,7 +18,11 @@ class ArgolightConfigurator(Configurator):
     - Helps in the generation of analysis_config files"""
 
     CONFIG_SECTION = "ARGOLIGHT"
-    ANALYSES = ["spots", "vertical_resolution", "horizontal_resolution"]
+
+    def define_metadata(self):
+        metadata_defs = [
+            {}
+        ]
 
     def __init__(self, config):
         super().__init__(config)
@@ -40,12 +36,10 @@ class ArgolightAnalyzer(Analyzer):
 
     def __init__(self, config=None):
         super().__init__(config=config)
-        # image_analysis_to_func = {
-        #     "spots": self.analyze_spots,
-        #     "vertical_resolution": self.analyze_vertical_resolution,
-        #     "horizontal_resolution": self.analyze_horizontal_resolution,
-        # }
         self.configurator = ArgolightConfigurator(config)
+
+    def describe_input_requirements(self):
+        print('This and that')
 
     @register_image_analysis
     def analyze_spots(self, image, config):
@@ -61,7 +55,7 @@ class ArgolightAnalyzer(Analyzer):
                  a list of dicts
                  a dict containing table_names and tables
         """
-        module_logger.info(f"Analyzing spots image...")
+        logger.info(f"Analyzing spots image...")
 
         # Calculating the distance between spots in pixels with a security margin
         min_distance = round(

@@ -18,15 +18,15 @@ from microscopemetrics.samples.dataset import DatasetConfigurator
 from microscopemetrics.devices import devices
 
 # import samples
-from microscopemetrics.samples.argolight import ArgolightConfigurator
+# from microscopemetrics.samples.argolight import ArgolightConfigurator
 from microscopemetrics.samples.psf_beads import PSFBeadsConfigurator
 
-SAMPLE_CONFIGURATORS = [ArgolightConfigurator,
-                        PSFBeadsConfigurator]
+# SAMPLE_CONFIGURATORS = [ArgolightConfigurator,
+#                         PSFBeadsConfigurator]
 # noinspection PyUnresolvedReferences
-SAMPLE_HANDLERS = [c.SAMPLE_CLASS for c in SAMPLE_CONFIGURATORS]
-SAMPLE_SECTIONS = [c.CONFIG_SECTION for c in SAMPLE_CONFIGURATORS]
-SAMPLE_ANALYSES = [c.ANALYSES for c in SAMPLE_CONFIGURATORS]
+# SAMPLE_HANDLERS = [c.SAMPLE_CLASS for c in SAMPLE_CONFIGURATORS]
+# SAMPLE_SECTIONS = [c.CONFIG_SECTION for c in SAMPLE_CONFIGURATORS]
+# SAMPLE_ANALYSES = [c.ANALYSES for c in SAMPLE_CONFIGURATORS]
 
 # Creating logging services
 module_logger = logging.getLogger('metrics.analysis')

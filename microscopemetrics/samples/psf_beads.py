@@ -1,9 +1,4 @@
-from metrics.analysis.tools import (
-    segment_image,
-    compute_distances_matrix,
-    compute_spots_properties,
-)
-from metrics.utils.utils import airy_fun, gaussian_fun, convert_SI
+from microscopemetrics.utilities.utilities import airy_fun, gaussian_fun, convert_SI
 
 import numpy as np
 from skimage.filters import gaussian

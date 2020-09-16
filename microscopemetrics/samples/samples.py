@@ -1,6 +1,9 @@
 # Main samples module defining the sample superclass
 
-from abc import ABC
+from abc import ABC, abstractmethod
+import logging
+
+from ..model import model
 
 # We are defining some global dictionaries to register the different analysis types
 IMAGE_ANALYSIS_REGISTRY = {}
@@ -12,16 +15,22 @@ def register_image_analysis(fn):
     IMAGE_ANALYSIS_REGISTRY[fn.__name__] = fn
     return fn
 
+
 def register_dataset_analysis(fn):
     DATASET_ANALYSIS_REGISTRY[fn.__name__] = fn
     return fn
+
 
 def register_progression_analysis(fn):
     PROGRESSION_ANALYSIS_REGISTRY[fn.__name__] = fn
     return fn
 
 
-class Configurator:
+# Create a logging service
+logger = logging.getLogger(__name__)
+
+
+class Configurator(ABC):
     """This is a superclass taking care of the configuration of a new sample. Helps generating configuration files and
     defines configuration parameters necessary for the different analyses. You should subclass this when you create a
     new sample.
@@ -29,19 +38,19 @@ class Configurator:
 
     # The configuration section has to be defined for every subclass
     CONFIG_SECTION: str = None
-    ANALYSES = list()
 
     def __init__(self, config):
         self.config = config
+        self.metadata_definitions = self.define_metadata()
+
+    @abstractmethod
+    def define_metadata(self):
+        pass
 
     @classmethod
     def register_sample_analyzer(cls, sample_class):
         cls.SAMPLE_CLASS = sample_class
         return sample_class
-
-    @classmethod
-    def register_analyses(cls):
-        pass
 
 
 class Analyzer(ABC):
@@ -54,6 +63,15 @@ class Analyzer(ABC):
         """
         self.config = config
 
+    @staticmethod
+    def crete_input_dataset(data: dict = None, metadata: dict = None):
+        input_dataset = model.MetricsDataset(data=data, metadata=metadata)
+        return input_dataset
+
+    @abstractmethod
+    def describe_input_requirements(self):
+        pass
+
     @classmethod
     def get_module(cls):
         """Returns the module name of the class. Without path and extension.
@@ -61,7 +79,7 @@ class Analyzer(ABC):
         """
         return cls.__module__.split(sep=".")[-1]
 
-    def validate_dataset(self):
+    def validate_dataset(self, dataset):
         """Override this method to integrate all the logic of dataset validation"""
         pass
 

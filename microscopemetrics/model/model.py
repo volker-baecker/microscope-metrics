@@ -13,7 +13,7 @@ class Metadata:
 
 
 class MetricsDataset:
-    """This class represents a single dataser including the intensity data and the metadata.
+    """This class represents a single dataset including the intensity data and the metadata.
     Instances of this class are used by the analysis routines to get the necessary data to perform the analysis"""
 
     def __init__(self, data: dict = None, metadata: dict = None):
@@ -390,7 +390,8 @@ class Polygon(Shape):
         self.point_list = self._test_point_list(point_list)
         self.is_open = is_open
 
-    def _test_point_list(self, point_list):
+    @staticmethod
+    def _test_point_list(point_list):
         def _test_point(point):
             return all([isinstance(point[0], (int, float)),
                         isinstance(point[1], (int, float)),
@@ -433,7 +434,8 @@ class KeyValues(OutputProperty):
         else:
             raise ValueError(f'The values must be of types {KeyValues.accepted_types}')
 
-    def _validate_values(self, key_values):
+    @staticmethod
+    def _validate_values(key_values):
         return all([isinstance(v, KeyValues.accepted_types) for _, v in key_values])
 
 
