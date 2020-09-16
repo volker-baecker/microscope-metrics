@@ -6,11 +6,11 @@ from typing import Union, List, Dict
 from typeguard import check_type
 
 
-class MetricsDataset:
-    """This class represents a single dataset including the intensity data and the metadata.
+class MetricsDataset(ABC):
+    """This class represents a single dataset including the intensity data and the name.
     Instances of this class are used by the analysis routines to get the necessary data to perform the analysis"""
 
-    def __init__(self, data: dict = None, metadata: dict = {}):
+    def __init__(self, data: dict = None, metadata: dict = None):
         if data is not None:
             self.data = data
         else:
@@ -19,7 +19,7 @@ class MetricsDataset:
         if metadata is not None:
             self.metadata = metadata
         else:
-            self._metadata = metadata
+            self._metadata = {}
 
     @property
     def data(self):
@@ -29,50 +29,41 @@ class MetricsDataset:
     def data(self, data):
         self._data = data
 
-    @property
-    def metadata(self):
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        if isinstance(metadata, dict):
-            self._metadata = metadata
-        else:
-            raise TypeError('Metadata must be a dictionary')
-
-    def metadata_add(self, name, desc, type, value):
-        check_type(name, value, type)
-        self._metadata.update[name] = {'desc': desc,
-                                       'type': type,
-                                       'value': value}
-
-    def get_metadata(self, metadata: Union[str, list]):
-        if isinstance(metadata, str):
+    def get_metadata(self, name: Union[str, list] = None):
+        if name is None:
+            return self._metadata
+        elif isinstance(name, str):
             try:
-                return self._metadata[metadata]
+                return self._metadata[name]['value']
             except KeyError as e:
-                raise KeyError(f'Metadatum "{metadata}" does not exist') from e
-        elif isinstance(metadata, list):
-            return {k: self.get_metadata(k) for k in metadata}
+                raise KeyError(f'Metadatum "{name}" does not exist') from e
+        elif isinstance(name, list):
+            return {k: self.get_metadata(k) for k in name}
         else:
             raise TypeError('get_metadata requires a string or list of strings')
 
-    def delete_metadata(self, metadata: Union[str, list]):
-        if isinstance(metadata, str):
-            try:
-                del(self._metadata[metadata])
-            except KeyError as e:
-                raise KeyError(f'Metadatum "{metadata}" does not exist') from e
-        elif isinstance(metadata, list):
-            return [self.delete_metadata(m) for m in metadata]
-        else:
-            raise TypeError('delete_metadata requires a string or list of strings')
+    def set_metadata(self, name: str, value):
+        expected_type = self._metadata[name]['type']
+        check_type(name, value, expected_type)
+        self._metadata[name]['value'] = value
 
-    def append_metadata(self, metadata: dict):
+    def del_metadata(self, name: str):
         try:
-            self._metadata.update(metadata)
-        except TypeError as e:
-            raise TypeError('Metadata must be a dictionary') from e
+            self._metadata[name]['value'] = None
+        except KeyError as e:
+            raise KeyError(f'Metadata "{name}" does not exist') from e
+
+    def metadata_add_requirement(self, name: str, desc: str, type, optional: bool):
+        self._metadata[name] = {'desc': desc,
+                                'type': type,
+                                'optional': optional,
+                                'value': None}
+
+    def metadata_remove_requirement(self, name: str):
+        try:
+            del(self._metadata[name])
+        except KeyError as e:
+            raise KeyError(f'Metadata "{name}" does not exist') from e
 
 
 class MetricsOutput:
