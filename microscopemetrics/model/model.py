@@ -3,16 +3,29 @@ It creates a few classes representing input data and output data
 """
 from abc import ABC
 from typing import Union
-import numpy as np
 
 
-class MetricsImage:
-    """This class represents a single image including the intensity data and the metadata.
+class Metadata:
+    def __init__(self, name, desc, typ):
+        self.name = name
+        self.desc = desc
+        self.type = typ
+
+
+class MetricsDataset:
+    """This class represents a single dataser including the intensity data and the metadata.
     Instances of this class are used by the analysis routines to get the necessary data to perform the analysis"""
 
-    def __init__(self, data: np.ndarray = None, metadata: dict = None):
-        self.data = data
-        self.metadata = metadata
+    def __init__(self, data: dict = None, metadata: dict = None):
+        if data is not None:
+            self.data = data
+        else:
+            self._data = data
+
+        if metadata is not None:
+            self.metadata = metadata
+        else:
+            self._metadata = metadata
 
     @property
     def data(self):
