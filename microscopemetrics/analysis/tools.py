@@ -10,12 +10,10 @@ from scipy import ndimage
 import numpy as np
 from itertools import permutations
 
-# from dask import delayed
-
 import logging
 
 # Creating logging services
-module_logger = logging.getLogger('metrics.analysis.tools')
+module_logger = logging.getLogger(__name__)
 
 
 def _segment_channel(channel, min_distance, method,
