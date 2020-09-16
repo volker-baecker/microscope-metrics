@@ -1,0 +1,9 @@
+# running requirements
+scikit-image
+scipy
+
+# development requirements
+pytest
+
+# requuirements outside the environment
+# black
