@@ -23,7 +23,7 @@ def filled_input_dataset():
                                              desc='Well you bet how big this is...',
                                              type=List[float],
                                              optional=False)
-    metrics_dataset.metadata_add_requirement(name='Wavelength',
+    metrics_dataset.metadata_add_requirement(name='wavelength',
                                              desc='Well you bet what color this is...',
                                              type=Union[int, float],
                                              optional=True)
@@ -53,7 +53,6 @@ def test_add_metadata_requirements(empty_input_dataset):
     assert empty_input_dataset._metadata['pixel size']['desc'] == 'Well you bet what this is...'
     assert empty_input_dataset._metadata['pixel size']['type'] == List[float]
     assert not empty_input_dataset._metadata['pixel size']['optional']
-
 
 
 def test_set_metadata(filled_input_dataset):
