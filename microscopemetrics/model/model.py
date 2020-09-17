@@ -29,6 +29,18 @@ class MetricsDataset(ABC):
     def data(self, data):
         self._data = data
 
+    def metadata_add_requirement(self, name: str, desc: str, type, optional: bool):
+        self._metadata[name] = {'desc': desc,
+                                'type': type,
+                                'optional': optional,
+                                'value': None}
+
+    def metadata_remove_requirement(self, name: str):
+        try:
+            del (self._metadata[name])
+        except KeyError as e:
+            raise KeyError(f'Metadata "{name}" does not exist') from e
+
     def get_metadata(self, name: Union[str, list] = None):
         if name is None:
             return self._metadata
@@ -53,22 +65,11 @@ class MetricsDataset(ABC):
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
-    def metadata_add_requirement(self, name: str, desc: str, type, optional: bool):
-        self._metadata[name] = {'desc': desc,
-                                'type': type,
-                                'optional': optional,
-                                'value': None}
-
-    def metadata_remove_requirement(self, name: str):
-        try:
-            del(self._metadata[name])
-        except KeyError as e:
-            raise KeyError(f'Metadata "{name}" does not exist') from e
-
 
 class MetricsOutput:
     """This class is used by microscopemetrics to return the output of an analysis.
     """
+
     def __init__(self, description: str = None):
         self.description = description
         self._properties = {}
@@ -77,7 +78,7 @@ class MetricsOutput:
         return self._properties[property_name]
 
     def delete_property(self, property_name: str):
-        del(self._properties[property_name])
+        del (self._properties[property_name])
 
     def append_property(self, output_property):
         if isinstance(output_property, OutputProperty):
@@ -90,7 +91,7 @@ class MetricsOutput:
             self.append_property(p)
 
     def _get_properties_by_type(self, type_str):
-        return [v for _, v in iter(self._properties) if v.get_type == type_str]
+        return [v for _, v in self._properties.items() if v.type == type_str]
 
     def get_images(self):
         return self._get_properties_by_type('Image')
@@ -167,13 +168,14 @@ class Roi(OutputProperty):
 
     @shapes.setter
     def shapes(self, shapes):
-        if all(isinstance(s, Shape) for s in shapes):
+        if all(isinstance(s, Shape) for s in shapes) or \
+                isinstance(shapes, Shape):
             self._shapes = shapes
         else:
             raise TypeError('Objects passed to create a roi must be of type Shape')
 
 
-class Shape:
+class Shape(ABC):
     def __init__(self,
                  z=None,
                  c=None,
@@ -250,15 +252,12 @@ class Point(Shape):
 
 
 class Line(Shape):
-    def __init__(self, x1, y1, x2, y2, z=None, c=None, t=None, **kwargs):
+    def __init__(self, x1, y1, x2, y2, **kwargs):
         super().__init__(**kwargs)
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
-        self.z = z
-        self.c = c
-        self.t = t
 
     @property
     def x1(self):
@@ -427,12 +426,12 @@ class KeyValues(OutputProperty):
 
     @staticmethod
     def _validate_values(key_values):
-        return all([isinstance(v, KeyValues.accepted_types) for _, v in key_values])
+        return all([isinstance(v, KeyValues.accepted_types) for _, v in key_values.items()])
 
 
 class Table(OutputProperty):
-    def get_type(self):
-        return 'Table'
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
 class Comment(OutputProperty):
