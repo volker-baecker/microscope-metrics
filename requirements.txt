@@ -6,5 +6,5 @@ typeguard
 # development requirements
 pytest
 
-# requuirements outside the environment
+# requirements outside the environment
 # black

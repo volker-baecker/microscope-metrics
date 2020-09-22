@@ -10,7 +10,7 @@ import datetime
 from math import sin, asin, cos
 
 # Import sample superclass
-from .samples import Analyzer, Configurator
+from .samples import Analysis, Configurator
 
 # Creating logging services
 import logging
@@ -85,8 +85,8 @@ class PSFBeadsConfigurator(Configurator):
         super().__init__(config)
 
 
-@PSFBeadsConfigurator.register_sample_analyzer
-class PSFBeadsAnalyzer(Analyzer):
+@PSFBeadsConfigurator.register_sample_analysis
+class PSFBeadsAnalysis(Analysis):
     """This class handles a PSF beads sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""

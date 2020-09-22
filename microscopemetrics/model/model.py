@@ -6,7 +6,7 @@ from typing import Union, List, Dict
 from typeguard import check_type
 
 
-class MetricsDataset(ABC):
+class MetricsDataset:
     """This class represents a single dataset including the intensity data and the name.
     Instances of this class are used by the analysis routines to get the necessary data to perform the analysis"""
 
@@ -29,8 +29,8 @@ class MetricsDataset(ABC):
     def data(self, data):
         self._data = data
 
-    def metadata_add_requirement(self, name: str, desc: str, type, optional: bool):
-        self._metadata[name] = {'desc': desc,
+    def metadata_add_requirement(self, name: str, description: str, type, optional: bool):
+        self._metadata[name] = {'description': description,
                                 'type': type,
                                 'optional': optional,
                                 'value': None}
@@ -40,6 +40,39 @@ class MetricsDataset(ABC):
             del (self._metadata[name])
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
+
+    def metadata_describe_requirements(self):
+        str_output = list()
+        for name, req in self._metadata.items():
+            str_output.append('----------')
+            str_output.append('Name: ' + name)
+            str_output.extend([f'{k.capitalize()}: {v}' for k, v in req.items()])
+        str_output.append('----------')
+        str_output = '\n'.join(str_output)
+        return str_output
+
+    def validate_requirements(self, strict=False):
+        validated = list()
+        reasons = list()
+        for name, req in self._metadata.items():
+            v, r = self._validate_requirement(name, req, strict)
+            validated.append(v)
+            reasons.append(r)
+        return all(validated), reasons
+
+    @staticmethod
+    def _validate_requirement(name, requirement, strict):
+        if requirement['optional'] and not strict:
+            return True, f'{name} is optional'
+        else:
+            if requirement['value'] is None:
+                return False, f'{name} has None value'
+            else:
+                try:
+                    check_type(name, requirement['value'], requirement['type'])
+                    return True, f'{name} is the correct type'
+                except TypeError:
+                    return False, f'{name} is not of the correct type ({requirement["type"]})'
 
     def get_metadata(self, name: Union[str, list] = None):
         if name is None:
@@ -55,7 +88,10 @@ class MetricsDataset(ABC):
             raise TypeError('get_metadata requires a string or list of strings')
 
     def set_metadata(self, name: str, value):
-        expected_type = self._metadata[name]['type']
+        try:
+            expected_type = self._metadata[name]['type']
+        except KeyError as e:
+            raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
         check_type(name, value, expected_type)
         self._metadata[name]['value'] = value
 
@@ -64,6 +100,9 @@ class MetricsDataset(ABC):
             self._metadata[name]['value'] = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
+
+    def list_metadata_names(self):
+        return [k for k, _ in self._metadata]
 
 
 class MetricsOutput:

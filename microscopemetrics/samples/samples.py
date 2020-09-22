@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 import logging
+from typing import Union
 
 from ..model import model
 
@@ -9,6 +10,7 @@ from ..model import model
 IMAGE_ANALYSIS_REGISTRY = {}
 DATASET_ANALYSIS_REGISTRY = {}
 PROGRESSION_ANALYSIS_REGISTRY = {}
+
 
 # Decorators to register exposed analysis functions
 def register_image_analysis(fn):
@@ -30,12 +32,16 @@ def register_progression_analysis(fn):
 logger = logging.getLogger(__name__)
 
 
+class Sample(ABC):
+    def __init__(self):
+        pass
+
+
 class Configurator(ABC):
     """This is a superclass taking care of the configuration of a new sample. Helps generating configuration files and
-    defines configuration parameters necessary for the different analyses. You should subclass this when you create a
-    new sample.
+    defines the metadata required for the different analyses. You should subclass this when you create a
+    new sample. One for each type of configurator that you wish to have.
     """
-
     # The configuration section has to be defined for every subclass
     CONFIG_SECTION: str = None
 
@@ -48,43 +54,52 @@ class Configurator(ABC):
         pass
 
     @classmethod
-    def register_sample_analyzer(cls, sample_class):
+    def register_sample_analysis(cls, sample_class):
         cls.SAMPLE_CLASS = sample_class
         return sample_class
 
 
-class Analyzer(ABC):
+class Analysis(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
-    def __init__(self, config):
-        """Add to the init subclass a dictionary mapping analyses strings to functions
-        :type config: analysis_config section
-        :param config: analysis_config section specifying sample options
-        """
-        self.config = config
-
-    @staticmethod
-    def crete_input_dataset(data: dict = None, metadata: dict = None):
-        input_dataset = model.MetricsDataset(data=data, metadata=metadata)
-        return input_dataset
-
-    @abstractmethod
-    def describe_input_requirements(self):
-        pass
+    def __init__(self):
+        self.input_dataset = model.MetricsDataset(data=None, metadata=None)
+        self.output_dataset = None
 
     @classmethod
-    def get_module(cls):
+    def get_sample(cls):
         """Returns the module name of the class. Without path and extension.
         :returns a string with the module name
         """
         return cls.__module__.split(sep=".")[-1]
 
-    def validate_dataset(self, dataset):
-        """Override this method to integrate all the logic of dataset validation"""
-        pass
+    def add_requirement(self, metadata_name: str, description: str, type, optional: bool):
+        self.input_dataset.metadata_add_requirement(name=metadata_name,
+                                                    description=description,
+                                                    type=type,
+                                                    optional=optional)
+
+    def describe_requirements(self):
+        # TODO: must add description of image dataset
+        print(self.input_dataset.metadata_describe_requirements())
+
+    def validate_requirements(self, strict: bool = False):
+        valid, reasons = self.input_dataset.validate_requirements(strict=strict)
+        if valid:
+            return True
+        else:
+            print('\n'.join(reasons))
+            return False
+
+    def set_metadata(self, name: str, value):
+        self.input_dataset.set_metadata(name, value)
+
+    def get_metadata(self, name: Union[str, list] = None):
+        self.input_dataset.get_metadata(name)
 
     def _verify_limits(self, key_values, config, object_ref):
-        """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the analysis_config"""
+        """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the
+        analysis_config """
         limits_passed = {
             "uhl_passed": True,
             "lhl_passed": True,

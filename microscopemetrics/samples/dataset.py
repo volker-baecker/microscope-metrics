@@ -2,7 +2,7 @@
 from datetime import datetime
 
 # Import sample superclass
-from microscopemetrics.samples.samples import Analyzer, Configurator
+from microscopemetrics.samples.samples import Analysis, Configurator
 
 # Creating logging services
 import logging
@@ -21,8 +21,8 @@ class DatasetConfigurator(Configurator):
         super().__init__(config)
 
 
-@DatasetConfigurator.register_sample_analyzer
-class DatasetAnalyzer(Analyzer):
+@DatasetConfigurator.register_sample_analysis
+class DatasetAnalysis(Analysis):
     """This class handles the Excitation_power sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""

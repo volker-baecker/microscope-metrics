@@ -28,8 +28,8 @@ class ArgolightConfigurator(Configurator):
         super().__init__(config)
 
 
-@ArgolightConfigurator.register_sample_analyzer
-class ArgolightAnalyzer(Analyzer):
+@ArgolightConfigurator.register_sample_analysis
+class ArgolightAnalysis(Analysis):
     """This class handles the Argolight sample:
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""
