@@ -84,7 +84,6 @@ def save_data_key_values(conn, key_values, interface_obj, namespace, editable=Fa
 
 
 def create_roi(conn, shapes, image, name, description):
-    new_shapes = list()
     type_to_func = {'point': interface.create_shape_point,
                     'line': interface.create_shape_line,
                     'rectangle': interface.create_shape_rectangle,
@@ -92,9 +91,7 @@ def create_roi(conn, shapes, image, name, description):
                     'polygon': interface.create_shape_polygon,
                     'mask': interface.create_shape_mask}
 
-    for shape in shapes:
-        new_shapes.append(type_to_func[shape['type']](**shape['args']))
-
+    new_shapes = [type_to_func[shape['type']](**shape['args']) for shape in shapes]
     interface.create_roi(connection=conn,
                          image=image,
                          shapes=new_shapes,
