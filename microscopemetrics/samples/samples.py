@@ -189,11 +189,11 @@ class Analysis(ABC):
                  a list of dicts specifying if soft and hard limits are passed or not. if verify_limits is False, an
                  empty list is returned
         """
-        out_images = list()
-        out_tags = list()
-        out_dicts = list()
+        out_images = []
+        out_tags = []
+        out_dicts = []
         out_editables = list()
-        out_tables = dict()
+        out_tables = {}
         limits_passed = list()
         if isinstance(analyses, str):
             analyses = [analyses]
@@ -241,11 +241,11 @@ class Analysis(ABC):
                  a list of dicts specifying if soft and hard limits are passed or not, which limits are not passed
                  and the images ids. if verify_limits is False, an empty list is returned
         """
-        out_images = list()
-        out_rois = list()
-        out_tags = list()
+        out_images = []
+        out_rois = []
+        out_tags = []
         out_dicts = list()
-        out_tables = dict()
+        out_tables = {}
         limits_passed = list()
         if isinstance(analyses, str):
             analyses = [analyses]
@@ -275,15 +275,13 @@ class Analysis(ABC):
     @staticmethod
     def _create_roi(shapes, name=None, description=None):
         """A helper function to create ROIs"""
-        roi = {"name": name, "desc": description, "shapes": shapes}
-        return roi
+        return {"name": name, "desc": description, "shapes": shapes}
 
     @staticmethod
     def _create_shape(shape_type, **kwargs):
         """A helper function to create roi shapes"""
         if shape_type in ["point", "line", "rectangle", "ellipse", "polygon"]:
-            shape = {"type": shape_type, "args": kwargs}
-            return shape
+            return {"type": shape_type, "args": kwargs}
         else:
             raise ValueError("Cannot recognize that type of shape")
 

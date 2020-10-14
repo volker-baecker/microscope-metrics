@@ -35,11 +35,11 @@ def filled_input_dataset():
 def metrics_output():
     metrics_output = model.MetricsOutput(description='Test_output')
 
-    shapes = [model.Point(5, 5),
-              model.Line(5, 5, 12, 12),
-              model.Rectangle(5, 5, 12, 12),
-              model.Ellipse(5, 5, 12, 12),
-              model.Polygon([(5, 5), (12, 12), (9, 9)]),
+    shapes = [model.Point(x=5, y=5),
+              model.Line(x1=5, y1=5, x2=12, y2=12),
+              model.Rectangle(x=5, y=5, h=12, w=12),
+              model.Ellipse(x=5, y=5, x_rad=12, y_rad=12),
+              model.Polygon(points=[(5, 5), (12, 12), (9, 9)]),
               ]
 
     roi = model.Roi(shapes=shapes, name='roi_name', description='roi_description')

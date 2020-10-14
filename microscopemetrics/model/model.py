@@ -2,8 +2,28 @@
 It creates a few classes representing input data and output data
 """
 from abc import ABC
-from typing import Union, List, Dict
+from dataclasses import field
+from pydantic.dataclasses import dataclass
+
+from typing import Union, List, Tuple
 from typeguard import check_type
+
+# This is for future python 3.9
+# class AnnotationFactory:
+#     def __init__(self, type_hint):
+#         self.type_hint = type_hint
+#
+#     def __getitem__(self, key):
+#         if isinstance(key, tuple):
+#             return Annotated[(self.type_hint, ) + key]
+#         return Annotated[self.type_hint, key]
+#
+#     def __repr__(self):
+#         return f"{self.__class__.__name__}({self.type_hint})"
+#
+#
+# Float = AnnotationFactory(float)
+# Int = AnnotationFactory(int)
 
 
 class MetricsDataset:
@@ -42,7 +62,7 @@ class MetricsDataset:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
     def metadata_describe_requirements(self):
-        str_output = list()
+        str_output = []
         for name, req in self._metadata.items():
             str_output.append('----------')
             str_output.append('Name: ' + name)
@@ -53,7 +73,7 @@ class MetricsDataset:
 
     def validate_requirements(self, strict=False):
         validated = list()
-        reasons = list()
+        reasons = []
         for name, req in self._metadata.items():
             v, r = self._validate_requirement(name, req, strict)
             validated.append(v)
@@ -214,222 +234,73 @@ class Roi(OutputProperty):
             raise TypeError('Objects passed to create a roi must be of type Shape')
 
 
+@dataclass
 class Shape(ABC):
-    def __init__(self,
-                 z=None,
-                 c=None,
-                 t=None,
-                 fill_color: tuple = (10, 10, 10, 10),
-                 stroke_color: tuple = (255, 255, 255, 255),
-                 stroke_width: int = 1
-                 ):
-        self.z = z
-        self.c = c
-        self.t = t
-        self.fill_color = fill_color
-        self.stroke_color = stroke_color
-        self.stroke_width = stroke_width
+    z: int = field(default=None)
+    c: int = field(default=None)
+    t: int = field(default=None)
+    fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
+    stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
+    stroke_width: int = field(default=1)
 
-    def _test_numeric(self, value):
-        if isinstance(value, (int, float)):
-            return value
-        else:
-            raise TypeError(f'{type(self).__name__} coordinates must be numeric')
-
-    def _test_int_or_none(self, value: object) -> object:
-        if isinstance(value, int) or value is None:
-            return value
-        else:
-            raise TypeError(f'{type(self).__name__} positions must be integers')
-
-    @property
-    def z(self):
-        return self._z
-
-    @z.setter
-    def z(self, value):
-        self._z = self._test_int_or_none(value)
-
-    @property
-    def c(self):
-        return self._c
-
-    @c.setter
-    def c(self, value):
-        self._c = self._test_int_or_none(value)
-
-    @property
-    def t(self):
-        return self._t
-
-    @t.setter
-    def t(self, value):
-        self._t = self._test_int_or_none(value)
+    # Exmaple for python 3.9 annotating units
+    # z: Int['z plane number'] = field(default=None)
+    # c: Int['channel number'] = field(default=None)
+    # t: Int['time frame'] = field(default=None)
+    # fill_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] = \
+    #             field(default=(10, 10, 10, 10))
+    # stroke_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] = \
+    #               field(default=(255, 255, 255, 255))
+    # stroke_width: int  = field(default=1)
 
 
+@dataclass
 class Point(Shape):
-    def __init__(self, x, y, **kwargs):
-        super().__init__(**kwargs)
-        self.x = x
-        self.y = y
+    x: float = field(default=None, metadata={'units': 'PIXELS'})
+    y: float = field(default=None, metadata={'units': 'PIXELS'})
 
-    @property
-    def x(self):
-        return self._x
-
-    @x.setter
-    def x(self, value):
-        self._x = self._test_numeric(value)
-
-    @property
-    def y(self):
-        return self._y
-
-    @y.setter
-    def y(self, value):
-        self._y = self._test_numeric(value)
+    # x: Float['pixels'] = field(default=None)
+    # y: Float['pixels'] = field(default=None)
 
 
+@dataclass
 class Line(Shape):
-    def __init__(self, x1, y1, x2, y2, **kwargs):
-        super().__init__(**kwargs)
-        self.x1 = x1
-        self.y1 = y1
-        self.x2 = x2
-        self.y2 = y2
-
-    @property
-    def x1(self):
-        return self._x1
-
-    @x1.setter
-    def x1(self, value):
-        self._x1 = self._test_numeric(value)
-
-    @property
-    def y1(self):
-        return self._y1
-
-    @y1.setter
-    def y1(self, value):
-        self._y1 = self._test_numeric(value)
-
-    @property
-    def x2(self):
-        return self._x2
-
-    @x2.setter
-    def x2(self, value):
-        self._x2 = self._test_numeric(value)
-
-    @property
-    def y2(self):
-        return self._y2
-
-    @y2.setter
-    def y2(self, value):
-        self._y2 = self._test_numeric(value)
+    x1: float = field(default=None, metadata={'units': 'PIXELS'})
+    y1: float = field(default=None, metadata={'units': 'PIXELS'})
+    x2: float = field(default=None, metadata={'units': 'PIXELS'})
+    y2: float = field(default=None, metadata={'units': 'PIXELS'})
+    # x1: Float['pixels'] = field(default=None)
+    # y1: Float['pixels'] = field(default=None)
+    # x2: Float['pixels'] = field(default=None)
+    # y2: Float['pixels'] = field(default=None)
 
 
+@dataclass
 class Rectangle(Shape):
-    def __init__(self, x, y, w, h, **kwargs):
-        super().__init__(**kwargs)
-        self.x = x
-        self.y = y
-        self.w = w
-        self.h = h
-
-    @property
-    def x(self):
-        return self._x
-
-    @x.setter
-    def x(self, value):
-        self._x = self._test_numeric(value)
-
-    @property
-    def y(self):
-        return self._y
-
-    @y.setter
-    def y(self, value):
-        self._y = self._test_numeric(value)
-
-    @property
-    def w(self):
-        return self._w
-
-    @w.setter
-    def w(self, value):
-        self._w = self._test_numeric(value)
-
-    @property
-    def h(self):
-        return self._h
-
-    @h.setter
-    def h(self, value):
-        self._h = self._test_numeric(value)
+    x: float = field(default=None, metadata={'units': 'PIXELS'})
+    y: float = field(default=None, metadata={'units': 'PIXELS'})
+    w: float = field(default=None, metadata={'units': 'PIXELS'})
+    h: float = field(default=None, metadata={'units': 'PIXELS'})
+    # x: Float['pixels'] = field(default=None)
+    # y: Float['pixels'] = field(default=None)
+    # w: Float['pixels'] = field(default=None)
+    # h: Float['pixels'] = field(default=None)
 
 
+@dataclass
 class Ellipse(Shape):
-    def __init__(self, x, y, x_rad, y_rad, **kwargs):
-        super().__init__(**kwargs)
-        self.x = x
-        self.y = y
-        self.x_rad = x_rad
-        self.y_rad = y_rad
-
-    @property
-    def x(self):
-        return self._x
-
-    @x.setter
-    def x(self, value):
-        self._x = self._test_numeric(value)
-
-    @property
-    def y(self):
-        return self._y
-
-    @y.setter
-    def y(self, value):
-        self._y = self._test_numeric(value)
-
-    @property
-    def x_rad(self):
-        return self._x_rad
-
-    @x_rad.setter
-    def x_rad(self, value):
-        self._x_rad = self._test_numeric(value)
-
-    @property
-    def y_rad(self):
-        return self._y_rad
-
-    @y_rad.setter
-    def y_rad(self, value):
-        self._y_rad = self._test_numeric(value)
+    x: float = field(default=None, metadata={'units': 'PIXELS'})
+    y: float = field(default=None, metadata={'units': 'PIXELS'})
+    x_rad: float = field(default=None, metadata={'units': 'PIXELS'})
+    y_rad: float = field(default=None, metadata={'units': 'PIXELS'})
 
 
+@dataclass
 class Polygon(Shape):
-    def __init__(self, point_list: list, is_open: bool = False, **kwargs):
-        super().__init__(**kwargs)
-        self.point_list = self._test_point_list(point_list)
-        self.is_open = is_open
-
-    @staticmethod
-    def _test_point_list(point_list):
-        def _test_point(point):
-            return all([isinstance(point[0], (int, float)),
-                        isinstance(point[1], (int, float)),
-                        len(point) == 2])
-
-        if all([_test_point(p) for p in point_list]):
-            return point_list
-        else:
-            raise ValueError('Points of polygon do not have the right types')
+    points: List[Tuple[float, float]] = field(default=None, metadata={'units': 'PIXELS'})
+    is_open: bool = field(default=False)
+    # point_list: Annotated(list[tuple[float, float]], "pixels")
+    # is_open: Annotated(bool, "is open")
 
 
 class Mask(Shape):
@@ -465,7 +336,9 @@ class KeyValues(OutputProperty):
 
     @staticmethod
     def _validate_values(key_values):
-        return all([isinstance(v, KeyValues.accepted_types) for _, v in key_values.items()])
+        return all(
+            isinstance(v, KeyValues.accepted_types) for _, v in key_values.items()
+        )
 
 
 class Table(OutputProperty):

@@ -2,6 +2,7 @@
 scikit-image
 scipy
 typeguard
+pydantic
 
 # development requirements
 pytest
