@@ -1,7 +1,7 @@
 # running requirements
 scikit-image
 scipy
-typeguard
+pandas
 pydantic
 
 # development requirements

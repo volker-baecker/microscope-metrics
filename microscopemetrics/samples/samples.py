@@ -63,7 +63,7 @@ class Analysis(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
     new sample."""
     def __init__(self):
-        self.input_dataset = model.MetricsDataset(data=None, metadata=None)
+        self.input_dataset = model.MetricsDataset()
         self.output_dataset = None
 
     @classmethod

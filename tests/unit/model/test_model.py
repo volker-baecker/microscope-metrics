@@ -1,5 +1,6 @@
 import pytest
 from microscopemetrics.model import model
+from pandas import DataFrame
 from typing import Union, List, Tuple
 
 
@@ -81,11 +82,11 @@ def test_add_remove_input_metadata_requirements(empty_input_dataset):
                                                  type=List[float],
                                                  optional=False)
     assert empty_input_dataset.get_metadata('pixel size') is None
-    assert empty_input_dataset._metadata['pixel size']['description'] == 'Well you bet what this is...'
-    assert empty_input_dataset._metadata['pixel size']['type'] == List[float]
-    assert not empty_input_dataset._metadata['pixel size']['optional']
+    assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
+    assert empty_input_dataset.metadata['pixel size']['type'] == List[float]
+    assert not empty_input_dataset.metadata['pixel size']['optional']
     empty_input_dataset.metadata_remove_requirement('pixel size')
-    assert len(empty_input_dataset._metadata) == 0
+    assert len(empty_input_dataset.metadata) == 0
 
 
 def test_set_get_del_metadata(filled_input_dataset):
@@ -131,30 +132,36 @@ def test_constructor_MetricsOutput():
 def test_constructor_Roi():
     point = model.Point(5, 5)
     roi = model.Roi(shapes=[point],
-                    name='ROI')
+                    name='ROI',
+                    description="This is an important object")
     assert isinstance(roi, model.Roi)
 
 
 def test_constructor_Tag():
     tag = model.Tag(tag_value='test_tag',
-                    name='123')
+                    name='123',
+                    description='This is an important tag')
     assert isinstance(tag, model.Tag)
 
 
 def test_constructor_KeyValues():
     key_values = model.KeyValues(key_values={'a_key': 42},
-                                 name='a_name')
+                                 name='a_name',
+                                 description='Important keys and values')
     assert isinstance(key_values, model.KeyValues)
 
 
 def test_constructor_Table():
-    table = model.Table(name='a_table')
+    df = DataFrame()
+    table = model.Table(name=df)
     assert isinstance(table, model.Table)
 
 
+# TODO: replace this with a log
 def test_constructor_Comment():
     comment = model.Comment(comment='A beautiful image',
-                            name='This is a comment')
+                            name='This is a comment',
+                            description='')
     assert isinstance(comment, model.Comment)
 
 
