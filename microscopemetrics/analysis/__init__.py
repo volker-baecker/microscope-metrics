@@ -12,14 +12,14 @@ import logging
 # importlib.import_module('.argolight', package='metrics.samples')
 
 # import dataset analysis
-from microscopemetrics.samples.dataset import DatasetConfigurator
+#from microscopemetrics.samples.dataset import DatasetConfigurator
 
 # import devices
 from microscopemetrics.devices import devices
 
 # import samples
 # from microscopemetrics.samples.argolight import ArgolightConfigurator
-from microscopemetrics.samples.psf_beads import PSFBeadsConfigurator
+# from microscopemetrics.samples.psf_beads import PSFBeadsConfigurator
 
 # SAMPLE_CONFIGURATORS = [ArgolightConfigurator,
 #                         PSFBeadsConfigurator]

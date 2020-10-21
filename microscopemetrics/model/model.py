@@ -40,19 +40,21 @@ class MetricsDataset:
     data: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def add_metadata(self, name: str, description: str, type, optional: bool):
+    def add_metadata_requirement(self, name: str, description: str, md_type, optional: bool, units: str = None, default: Any = None):
         self.metadata[name] = {'description': description,
-                               'type': type,
+                               'type': md_type,
                                'optional': optional,
-                               'value': None}
+                               'value': default,
+                               'units': units,
+                               'default': default}
 
-    def remove_metadata(self, name: str):
+    def remove_metadata_requirement(self, name: str):
         try:
             del (self.metadata[name])
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
-    def describe_metadata(self):
+    def describe_metadata_requirement(self):
         str_output = []
         for name, req in self.metadata.items():
             str_output.append('----------')
@@ -66,13 +68,13 @@ class MetricsDataset:
         validated = []
         reasons = []
         for name, req in self.metadata.items():
-            v, r = self._validate_requirement(name, req, strict)
+            v, r = self._verify_requirement(name, req, strict)
             validated.append(v)
             reasons.append(r)
         return all(validated), reasons
 
     @staticmethod
-    def _validate_requirement(name, requirement, strict):
+    def _verify_requirement(name, requirement, strict):
         if requirement['optional'] and not strict:
             return True, f'{name} is optional'
         else:
@@ -111,7 +113,6 @@ class MetricsDataset:
             self.metadata[name]['value'] = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
-
 
     def del_metadata(self, name: str):
         try:

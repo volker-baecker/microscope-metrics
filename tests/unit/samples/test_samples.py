@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import numpy as np
 
@@ -68,7 +68,7 @@ def test_analysis_requirements(sample_analysis_with_data):
 
     assert sample_analysis_with_data.verify_requirements() is True
     with pytest.raises(KeyError):
-        sample_analysis_with_data.input.remove_metadata('non_existing')
+        sample_analysis_with_data.input.remove_metadata_requirement('non_existing')
     sample_analysis_with_data.empty_metadata('pixel_sizes')
     assert sample_analysis_with_data.verify_requirements() is False
     sample_analysis_with_data.set_metadata('pixel_sizes', (.2, .2, .5))

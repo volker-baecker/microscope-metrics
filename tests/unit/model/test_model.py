@@ -21,14 +21,14 @@ def filled_input_dataset():
             super().__init__()
     metrics_dataset = Dataset()
     metrics_dataset.data = [[1, 2, 3], [4, 5, 6]]
-    metrics_dataset.add_metadata(name='pixel size',
-                                 description='Well you bet how big this is...',
-                                 type=List[float],
-                                 optional=False)
-    metrics_dataset.add_metadata(name='wavelength',
-                                 description='Well you bet what color this is...',
-                                 type=Union[int, float],
-                                 optional=True)
+    metrics_dataset.add_metadata_requirement(name='pixel size',
+                                             description='Well you bet how big this is...',
+                                             type=List[float],
+                                             optional=False)
+    metrics_dataset.add_metadata_requirement(name='wavelength',
+                                             description='Well you bet what color this is...',
+                                             type=Union[int, float],
+                                             optional=True)
 
     return metrics_dataset
 
@@ -79,15 +79,15 @@ def test_set_get_input_data(empty_input_dataset):
 
 
 def test_add_remove_input_metadata_requirements(empty_input_dataset):
-    empty_input_dataset.add_metadata(name='pixel size',
-                                     description='Well you bet what this is...',
-                                     type=List[float],
-                                     optional=False)
+    empty_input_dataset.add_metadata_requirement(name='pixel size',
+                                                 description='Well you bet what this is...',
+                                                 type=List[float],
+                                                 optional=False)
     assert empty_input_dataset.get_metadata('pixel size') is None
     assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
     assert empty_input_dataset.metadata['pixel size']['type'] == List[float]
     assert not empty_input_dataset.metadata['pixel size']['optional']
-    empty_input_dataset.remove_metadata('pixel size')
+    empty_input_dataset.remove_metadata_requirement('pixel size')
     assert len(empty_input_dataset.metadata) == 0
 
 
@@ -110,7 +110,7 @@ def test_set_get_del_metadata(filled_input_dataset):
 
 
 def test_describe_requirements(filled_input_dataset):
-    description = filled_input_dataset.describe_metadata()
+    description = filled_input_dataset.describe_metadata_requirement()
     assert description == '----------\n' \
                           'Name: pixel size\n' \
                           'Description: Well you bet how big this is...\n' \

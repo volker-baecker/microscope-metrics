@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Union
+from typing import Union, Any
 
 from ..model import model
 
@@ -73,15 +73,23 @@ class Analysis(ABC):
         """
         return cls.__module__.split(sep=".")[-1]
 
-    def add_requirement(self, metadata_name: str, description: str, requirement_type, optional: bool):
-        self.input.add_metadata(name=metadata_name,
-                                description=description,
-                                type=requirement_type,
-                                optional=optional)
+    def add_requirement(self,
+                        name: str,
+                        description: str,
+                        requirement_type: Any,
+                        optional: bool,
+                        units: str = None,
+                        default: Any = None):
+        self.input.add_metadata_requirement(name=name,
+                                            description=description,
+                                            md_type=requirement_type,
+                                            optional=optional,
+                                            units=units,
+                                            default=default)
 
     def describe_requirements(self):
         # TODO: must add description of image dataset
-        print(self.input.describe_metadata())
+        print(self.input.describe_metadata_requirement())
 
     def verify_requirements(self, strict: bool = False):
         valid, reasons = self.input.verify_requirements(strict=strict)
@@ -289,7 +297,7 @@ class Analysis(ABC):
             raise ValueError("Cannot recognize that type of shape")
 
 
-class Reporter:
+class Reporter(ABC):
     """This is the superclass taking care of creating reports for a particular type of sample.
     You should subclass this when you create a new sample."""
 

@@ -1,9 +1,11 @@
 # Import sample infrastructure
-from .samples import *
+from microscopemetrics.samples import *
+
+from typing import Union, Tuple, List
 
 # Import analysis tools
 import numpy as np
-from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
+from skimage.transform import hough_line  # hough_line_peaks, probabilistic_hough_line
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
@@ -34,12 +36,44 @@ class ArgolightAnalysis(Analysis):
     - Defines the logic of the associated analyses
     - Defines the creation of reports"""
 
-    def __init__(self, config=None):
-        super().__init__(config=config)
-        self.configurator = ArgolightConfigurator(config)
-
-    def describe_input_requirements(self):
-        print('This and that')
+    def __init__(self):
+        description = "This analysis provides metrics on a number of the patterns found on " \
+                      "Argolight slides from http://argolight.com"
+        super().__init__(description=description)
+        self.add_requirement(name='spots_distance',
+                             description='Distance between argolight spots',
+                             requirement_type=float,
+                             units='MICRON',
+                             optional=False,
+                             default=None)
+        self.add_requirement(name='pixel_size',
+                             description='Physical size of the voxel in z, y and x',
+                             requirement_type=Tuple[float, float, float],
+                             units='MICRON',
+                             optional=False,
+                             default=None)
+        self.add_requirement(name='sigma',
+                             description='Smoothing factor for objects detection',
+                             requirement_type=Tuple[float, float, float],
+                             optional=True,
+                             default=(3, 3, 1))
+        self.add_requirement(name='lower_threshold_correction_factors',
+                             description='Correction factor for the lower thresholds. Must be a tuple with len = nr '
+                                         'of channels or a float if all equal',
+                             requirement_type=Union[List[float], Tuple[float], float],
+                             optional=True,
+                             default=0.8)
+        self.add_requirement(name='upper_threshold_correction_factors',
+                             description='Correction factor for the upper thresholds. Must be a tuple with len = nr '
+                                         'of channels or a float if all equal',
+                             requirement_type=Union[List[float], Tuple[float], float],
+                             optional=True,
+                             default=1.0)
+        self.add_requirement(name='remove_center_cross',
+                             description='Remove the center cross found in some Argolight patterns',
+                             requirement_type=bool,
+                             optional=True,
+                             default=False)
 
     @register_image_analysis
     def analyze_spots(self, image, config):
@@ -55,33 +89,37 @@ class ArgolightAnalysis(Analysis):
                  a list of dicts
                  a dict containing table_names and tables
         """
-        logger.info(f"Analyzing spots image...")
+        logger.info("Verifying requirements...")
+        if not self.verify_requirements():
+            raise Exception("Metadata requirements ara not valid")
+
+        logger.info("Analyzing spots image...")
 
         # Calculating the distance between spots in pixels with a security margin
         min_distance = round(
-            (config.getfloat("spots_distance") * 0.3) / max(image["pixel_size"][-2:])
+            (self.get_metadata('spots_distance') * 0.3) / max(self.get_metadata["pixel_size"][-2:])
         )
 
         # Calculating the maximum tolerated distance in microns for the same spot in a different channels
-        max_distance = config.getfloat("spots_distance") * 0.4
+        max_distance = self.get_metadata("spots_distance") * 0.4
 
         labels = segment_image(
-            image=image["image_data"],
+            image=self.input.data,
             min_distance=min_distance,
-            sigma=config.getlistfloat("sigma", "[1, 3, 3]"),
+            sigma=self.get_metadata('sigma'),
             method="local_max",
-            low_corr_factors=config.getlistfloat("lower_threshold_correction_factors"),
-            high_corr_factors=config.getlistfloat("upper_threshold_correction_factors"),
+            low_corr_factors=self.get_metadata("lower_threshold_correction_factors"),
+            high_corr_factors=self.get_metadata("upper_threshold_correction_factors"),
         )
 
         spots_properties, spots_positions = compute_spots_properties(
-            image=image["image_data"], labels=labels, remove_center_cross=False,
+            image=self.input.data, labels=labels, remove_center_cross=self.get_metadata('remove_center_cross'),
         )
 
         spots_distances = compute_distances_matrix(
             positions=spots_positions,
             max_distance=max_distance,
-            pixel_size=image["pixel_size"],
+            pixel_size=self.get_metadata('pixel_size'),
         )
 
         # Prepare key-value pairs
