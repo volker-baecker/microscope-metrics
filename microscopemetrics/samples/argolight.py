@@ -235,7 +235,7 @@ class ArgolightAnalysis(Analysis):
         ]
 
         # Create some rois to mark the positions
-        out_rois = list()
+        out_rois = []
 
         # Populate the data
         for ch, ch_spot_prop in enumerate(spots_properties):
@@ -764,14 +764,14 @@ class ArgolightReporter(Reporter):
 
 
 def _profile_to_table(profile):
-    table = list()
-    table.append(
+    table = [
         {
             "name": "raw_profile",
             "desc": f"Average intensity profile on measured band along measured axis and highest contrast z plane.",
             "data": [v.item() for v in profile[0, :]],
         }
-    )
+    ]
+
     for p in range(1, profile.shape[0]):
         table.append(
             {
@@ -787,9 +787,9 @@ def _profile_to_table(profile):
 def _fit(
     profile, peaks_guess, amp=4, exp=2, lower_amp=3, upper_amp=5, center_tolerance=1
 ):
-    guess = list()
-    lower_bounds = list()
-    upper_bounds = list()
+    guess = []
+    lower_bounds = []
+    upper_bounds = []
     for p in peaks_guess:
         guess.append(p)  # peak center
         guess.append(amp)  # peak amplitude
@@ -889,11 +889,11 @@ def _compute_resolution(
     image, axis, measured_band, prominence, do_angle_refinement=False
 ):
     profiles = list()
-    z_planes = list()
+    z_planes = []
     peaks_positions = list()
-    peaks_heights = list()
-    resolution_values = list()
-    resolution_indexes = list()
+    peaks_heights = []
+    resolution_values = []
+    resolution_indexes = []
     resolution_method = "rayleigh"
 
     for c in range(image.shape[1]):  # TODO: Deal with Time here

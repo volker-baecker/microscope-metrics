@@ -67,24 +67,24 @@ class Analysis(ABC):
         self.output_dataset = None
 
     @classmethod
-    def get_sample(cls):
+    def get_sample_name(cls):
         """Returns the module name of the class. Without path and extension.
         :returns a string with the module name
         """
         return cls.__module__.split(sep=".")[-1]
 
     def add_requirement(self, metadata_name: str, description: str, type, optional: bool):
-        self.input_dataset.metadata_add_requirement(name=metadata_name,
-                                                    description=description,
-                                                    type=type,
-                                                    optional=optional)
+        self.input_dataset.add_metadata(name=metadata_name,
+                                        description=description,
+                                        type=type,
+                                        optional=optional)
 
     def describe_requirements(self):
         # TODO: must add description of image dataset
-        print(self.input_dataset.metadata_describe_requirements())
+        print(self.input_dataset.describe_metadata())
 
     def validate_requirements(self, strict: bool = False):
-        valid, reasons = self.input_dataset.validate_requirements(strict=strict)
+        valid, reasons = self.input_dataset.verify_requirements(strict=strict)
         if valid:
             return True
         else:

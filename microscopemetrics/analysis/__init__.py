@@ -321,4 +321,4 @@ def analyze_dataset(connection, script_params, dataset, analysis_config, device_
     except KeyError:
         module_logger.info('No comments added')
 
-    module_logger.info(f'Analysis finished for dataset: {dataset.getId()}')
+    module_logger.info(f'Sample finished for dataset: {dataset.getId()}')

@@ -2,6 +2,7 @@ import pytest
 from microscopemetrics.model import model
 from pandas import DataFrame
 from typing import Union, List, Tuple
+from pydantic import ValidationError
 
 
 @pytest.fixture
@@ -20,14 +21,14 @@ def filled_input_dataset():
             super().__init__()
     metrics_dataset = Dataset()
     metrics_dataset.data = [[1, 2, 3], [4, 5, 6]]
-    metrics_dataset.metadata_add_requirement(name='pixel size',
-                                             description='Well you bet how big this is...',
-                                             type=List[float],
-                                             optional=False)
-    metrics_dataset.metadata_add_requirement(name='wavelength',
-                                             description='Well you bet what color this is...',
-                                             type=Union[int, float],
-                                             optional=True)
+    metrics_dataset.add_metadata(name='pixel size',
+                                 description='Well you bet how big this is...',
+                                 type=List[float],
+                                 optional=False)
+    metrics_dataset.add_metadata(name='wavelength',
+                                 description='Well you bet what color this is...',
+                                 type=Union[int, float],
+                                 optional=True)
 
     return metrics_dataset
 
@@ -44,22 +45,23 @@ def metrics_output():
               ]
 
     roi = model.Roi(shapes=shapes, name='roi_name', description='roi_description')
-    metrics_output.append_property(roi)
+    metrics_output.append(roi)
 
     tag1 = model.Tag(tag_value='test_tag1', name='tag1_name', description='tag1_description')
-    metrics_output.append_property(tag1)
+    metrics_output.append(tag1)
 
     tag2 = model.Tag(tag_value='test_tag2', name='tag2_name', description='tag2_description')
-    metrics_output.append_property(tag2)
+    metrics_output.append(tag2)
 
     key_values = model.KeyValues(key_values={'key': 42}, name='key_value_name', description='key_value_description')
-    metrics_output.append_property(key_values)
+    metrics_output.append(key_values)
 
-    table = model.Table(name='table_name', description='table_description')
-    metrics_output.append_property(table)
+    df = DataFrame.from_dict({'col_1': [3, 2, 1, 0], 'col_2': ['a', 'b', 'c', 'd']})
+    table = model.Table(table=df, name='table_name', description='table_description')
+    metrics_output.append(table)
 
     comment = model.Comment(comment='A beautiful image', name='comment_name', description='comment_description')
-    metrics_output.append_property(comment)
+    metrics_output.append(comment)
 
     return metrics_output
 
@@ -77,15 +79,15 @@ def test_set_get_input_data(empty_input_dataset):
 
 
 def test_add_remove_input_metadata_requirements(empty_input_dataset):
-    empty_input_dataset.metadata_add_requirement(name='pixel size',
-                                                 description='Well you bet what this is...',
-                                                 type=List[float],
-                                                 optional=False)
+    empty_input_dataset.add_metadata(name='pixel size',
+                                     description='Well you bet what this is...',
+                                     type=List[float],
+                                     optional=False)
     assert empty_input_dataset.get_metadata('pixel size') is None
     assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
     assert empty_input_dataset.metadata['pixel size']['type'] == List[float]
     assert not empty_input_dataset.metadata['pixel size']['optional']
-    empty_input_dataset.metadata_remove_requirement('pixel size')
+    empty_input_dataset.remove_metadata('pixel size')
     assert len(empty_input_dataset.metadata) == 0
 
 
@@ -108,7 +110,7 @@ def test_set_get_del_metadata(filled_input_dataset):
 
 
 def test_describe_requirements(filled_input_dataset):
-    description = filled_input_dataset.metadata_describe_requirements()
+    description = filled_input_dataset.describe_metadata()
     assert description == '----------\n' \
                           'Name: pixel size\n' \
                           'Description: Well you bet how big this is...\n' \
@@ -153,8 +155,10 @@ def test_constructor_KeyValues():
 
 def test_constructor_Table():
     df = DataFrame()
-    table = model.Table(name=df)
+    table = model.Table(table=df, name='Table', description='Description of content')
     assert isinstance(table, model.Table)
+    with pytest.raises(ValidationError):
+        table = model.Table(table=5, name='WrongTable', description='Not a table')
 
 
 # TODO: replace this with a log
@@ -170,14 +174,14 @@ def test_reading_metrics_output(metrics_output):
     assert isinstance(metrics_output.get_property('key_value_name'), model.KeyValues)
 
     assert len(metrics_output.get_tags()) == 2
-    metrics_output.delete_property('tag2_name')
+    metrics_output.delete('tag2_name')
     assert len(metrics_output.get_tags()) == 1
     tag2 = model.Tag(tag_value='test_tag2', name='tag2_name', description='tag2_description')
-    metrics_output.append_property(tag2)
+    metrics_output.append(tag2)
     assert len(metrics_output.get_tags()) == 2
     tag_list = [model.Tag(tag_value='test_tag3', name='tag3_name', description='tag3_description'),
                 model.Tag(tag_value='test_tag4', name='tag4_name', description='tag4_description')]
-    metrics_output.extend_properties(tag_list)
+    metrics_output.extend(tag_list)
     assert len(metrics_output.get_tags()) == 4
 
     assert f'{metrics_output.get_tags()[3].describe()}' == 'Name: tag4_name\nType: Tag\nDescription: tag4_description'

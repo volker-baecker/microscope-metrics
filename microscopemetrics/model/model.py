@@ -10,6 +10,7 @@ from pydantic import BaseModel, validate_arguments, validator
 from typeguard import check_type
 
 from pandas import DataFrame
+from numpy import ndarray
 
 from typing import Union, List, Tuple, Any
 
@@ -39,19 +40,19 @@ class MetricsDataset:
     data: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def metadata_add_requirement(self, name: str, description: str, type, optional: bool):
+    def add_metadata(self, name: str, description: str, type, optional: bool):
         self.metadata[name] = {'description': description,
                                'type': type,
                                'optional': optional,
                                'value': None}
 
-    def metadata_remove_requirement(self, name: str):
+    def remove_metadata(self, name: str):
         try:
             del (self.metadata[name])
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
-    def metadata_describe_requirements(self):
+    def describe_metadata(self):
         str_output = []
         for name, req in self.metadata.items():
             str_output.append('----------')
@@ -61,8 +62,8 @@ class MetricsDataset:
         str_output = '\n'.join(str_output)
         return str_output
 
-    def validate_requirements(self, strict=False):
-        validated = list()
+    def verify_requirements(self, strict=False):
+        validated = []
         reasons = []
         for name, req in self.metadata.items():
             v, r = self._validate_requirement(name, req, strict)
@@ -105,6 +106,13 @@ class MetricsDataset:
         check_type(name, value, expected_type)
         self.metadata[name]['value'] = value
 
+    def empty_metadata(self, name: str):
+        try:
+            self.metadata[name]['value'] = None
+        except KeyError as e:
+            raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
+
+
     def del_metadata(self, name: str):
         try:
             self.metadata[name]['value'] = None
@@ -125,18 +133,18 @@ class MetricsOutput:
     def get_property(self, name: str):
         return self.properties[name]
 
-    def delete_property(self, name: str):
+    def delete(self, name: str):
         del (self.properties[name])
 
-    def append_property(self, output_property):
+    def append(self, output_property):
         if isinstance(output_property, OutputProperty):
             self.properties.update({output_property.name: output_property})
         else:
             raise TypeError('Property appended must be a subtype of OutputProperty')
 
-    def extend_properties(self, properties_list: list):
+    def extend(self, properties_list: list):
         for p in properties_list:
-            self.append_property(p)
+            self.append(p)
 
     def _get_properties_by_type(self, property_type):
         return [v for _, v in self.properties.items() if v.type == property_type]
@@ -181,6 +189,18 @@ class OutputProperty(ABC):
         :return: str
         """
         return self.__class__.__name__
+
+
+@dataclass
+class Image(OutputProperty):
+    data: Any
+
+    @validator('data', allow_reuse=True)
+    def _is_ndarray(cls, d):
+        if isinstance(d, ndarray):
+            return d
+        else:
+            raise TypeError('image output must be a Numpy ndarray')
 
 
 @dataclass
@@ -275,15 +295,19 @@ class KeyValues(OutputProperty):
         if all(isinstance(v, (str, int, float)) for _, v in k_v.items()):
             return k_v
         else:
-            raise ValueError('Values for a KeyValue property must be str, int or float')
+            raise TypeError('Values for a KeyValue property must be str, int or float')
 
 
-#@dataclass
-class Table(BaseModel, OutputProperty):
-    table: type(DataFrame)
+@dataclass
+class Table(OutputProperty):
+    table: Any
 
-    class Config:
-        arbitrary_types_allowed = True
+    @validator('table', allow_reuse=True)
+    def _may_be_casted_to_df(cls, t):
+        if isinstance(t, (DataFrame, dict)):
+            return t
+        else:
+            raise TypeError('table must be a pandas DataFrame or a dict')
 
 
 @dataclass
