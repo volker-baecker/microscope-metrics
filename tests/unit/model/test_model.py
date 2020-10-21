@@ -23,11 +23,11 @@ def filled_input_dataset():
     metrics_dataset.data = [[1, 2, 3], [4, 5, 6]]
     metrics_dataset.add_metadata_requirement(name='pixel size',
                                              description='Well you bet how big this is...',
-                                             type=List[float],
+                                             md_type=List[float],
                                              optional=False)
     metrics_dataset.add_metadata_requirement(name='wavelength',
                                              description='Well you bet what color this is...',
-                                             type=Union[int, float],
+                                             md_type=Union[int, float],
                                              optional=True)
 
     return metrics_dataset
@@ -81,7 +81,7 @@ def test_set_get_input_data(empty_input_dataset):
 def test_add_remove_input_metadata_requirements(empty_input_dataset):
     empty_input_dataset.add_metadata_requirement(name='pixel size',
                                                  description='Well you bet what this is...',
-                                                 type=List[float],
+                                                 md_type=List[float],
                                                  optional=False)
     assert empty_input_dataset.get_metadata('pixel size') is None
     assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
@@ -117,12 +117,16 @@ def test_describe_requirements(filled_input_dataset):
                           'Type: typing.List[float]\n' \
                           'Optional: False\n' \
                           'Value: None\n' \
+                          'Units: None\n' \
+                          'Default: None\n' \
                           '----------\n' \
                           'Name: wavelength\n' \
                           'Description: Well you bet what color this is...\n' \
                           'Type: typing.Union[int, float]\n' \
                           'Optional: True\n' \
                           'Value: None\n' \
+                          'Units: None\n' \
+                          'Default: None\n' \
                           '----------'
 
 
