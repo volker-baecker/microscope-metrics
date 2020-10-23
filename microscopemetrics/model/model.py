@@ -87,18 +87,38 @@ class MetricsDataset:
                 except TypeError:
                     return False, f'{name} is not of the correct type ({requirement["type"]})'
 
-    def get_metadata(self, name: Union[str, list] = None):
-        if name is None:
-            return self.metadata
-        elif isinstance(name, str):
+    def get_metadata_values(self, name: Union[str, list]):
+        if isinstance(name, str):
             try:
                 return self.metadata[name]['value']
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
-            return {k: self.get_metadata(k) for k in name}
+            return {k: self.get_metadata_values(k) for k in name}
         else:
-            raise TypeError('get_metadata requires a string or list of strings')
+            raise TypeError('get_metadata_values requires a string or list of strings')
+
+    def get_metadata_units(self, name: Union[str, list]):
+        if isinstance(name, str):
+            try:
+                return self.metadata[name]['units']
+            except KeyError as e:
+                raise KeyError(f'Metadatum "{name}" does not exist') from e
+        elif isinstance(name, list):
+            return {k: self.get_metadata_units(k) for k in name}
+        else:
+            raise TypeError('get_metadata_units requires a string or list of strings')
+
+    def get_metadata_defaults(self, name: Union[str, list]):
+        if isinstance(name, str):
+            try:
+                return self.metadata[name]['default']
+            except KeyError as e:
+                raise KeyError(f'Metadatum "{name}" does not exist') from e
+        elif isinstance(name, list):
+            return {k: self.get_metadata_defaults(k) for k in name}
+        else:
+            raise TypeError('get_metadata_units requires a string or list of strings')
 
     def set_metadata(self, name: str, value):
         try:
@@ -108,9 +128,12 @@ class MetricsDataset:
         check_type(name, value, expected_type)
         self.metadata[name]['value'] = value
 
-    def empty_metadata(self, name: str):
+    def empty_metadata(self, name: str, replace_with_default: bool):
         try:
-            self.metadata[name]['value'] = None
+            if replace_with_default:
+                self.metadata[name]['value'] = self.metadata[name]['default']
+            else:
+                self.metadata[name]['value'] = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
 

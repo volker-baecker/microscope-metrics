@@ -80,14 +80,15 @@ def segment_image(image,
     # We create an empty array to store the output
     labels_image = np.zeros(image.shape, dtype=np.uint16)
     for c in range(image.shape[1]):
-        labels_image[:, c, ...] = _segment_channel(image[:, c, ...],
-                                                   min_distance=min_distance,
-                                                   method=method,
-                                                   threshold=None,
-                                                   sigma=sigma,
-                                                   low_corr_factor=low_corr_factors[c],
-                                                   high_corr_factor=high_corr_factors[c],
-                                                   indices=indices)
+        for t in range(image.shape[2]):
+            labels_image[:, c, t, ...] = _segment_channel(image[:, c, t, ...],
+                                                          min_distance=min_distance,
+                                                          method=method,
+                                                          threshold=None,
+                                                          sigma=sigma,
+                                                          low_corr_factor=low_corr_factors[c],
+                                                          high_corr_factor=high_corr_factors[c],
+                                                          indices=indices)
     return labels_image
 
 
@@ -130,13 +131,14 @@ def compute_spots_properties(image, labels, remove_center_cross=False, pixel_siz
     properties = list()
     positions = list()
 
-    for c in range(image.shape[-3]):  # TODO: Deal with Time here
-        pr, pos = _compute_channel_spots_properties(channel=image[..., c, :, :],
-                                                    label_channel=labels[..., c, :, :],
-                                                    remove_center_cross=remove_center_cross,
-                                                    pixel_size=pixel_size)
-        properties.append(pr)
-        positions.append(pos)
+    for c in range(image.shape[1]):  # TODO: Deal with Time here
+        for t in range(image.shape[2]):
+            pr, pos = _compute_channel_spots_properties(channel=image[:, c, t, ...],
+                                                        label_channel=labels[:, c, t, ...],
+                                                        remove_center_cross=remove_center_cross,
+                                                        pixel_size=pixel_size)
+            properties.append(pr)
+            positions.append(pos)
 
     return properties, positions
 

@@ -83,7 +83,7 @@ def test_add_remove_input_metadata_requirements(empty_input_dataset):
                                                  description='Well you bet what this is...',
                                                  md_type=List[float],
                                                  optional=False)
-    assert empty_input_dataset.get_metadata('pixel size') is None
+    assert empty_input_dataset.get_metadata_values('pixel size') is None
     assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
     assert empty_input_dataset.metadata['pixel size']['type'] == List[float]
     assert not empty_input_dataset.metadata['pixel size']['optional']
@@ -93,20 +93,20 @@ def test_add_remove_input_metadata_requirements(empty_input_dataset):
 
 def test_set_get_del_metadata(filled_input_dataset):
     filled_input_dataset.set_metadata('pixel size', [.2, .2, .5])
-    assert filled_input_dataset.get_metadata('pixel size') == [.2, .2, .5]
+    assert filled_input_dataset.get_metadata_values('pixel size') == [.2, .2, .5]
     filled_input_dataset.set_metadata('pixel size', [.2, .2, 2])
-    assert filled_input_dataset.get_metadata('pixel size') == [.2, .2, 2]
+    assert filled_input_dataset.get_metadata_values('pixel size') == [.2, .2, 2]
     with pytest.raises(TypeError):
         filled_input_dataset.set_metadata('pixel size', [.2, .2, 'not'])
 
     filled_input_dataset.set_metadata('wavelength', 488)
-    assert filled_input_dataset.get_metadata('wavelength') == 488
+    assert filled_input_dataset.get_metadata_values('wavelength') == 488
     filled_input_dataset.set_metadata('wavelength', 488.7)
-    assert filled_input_dataset.get_metadata('wavelength') == 488.7
+    assert filled_input_dataset.get_metadata_values('wavelength') == 488.7
     with pytest.raises(TypeError):
         filled_input_dataset.set_metadata('wavelength', 'blue')
     filled_input_dataset.del_metadata('wavelength')
-    assert filled_input_dataset.get_metadata('wavelength') is None
+    assert filled_input_dataset.get_metadata_values('wavelength') is None
 
 
 def test_describe_requirements(filled_input_dataset):

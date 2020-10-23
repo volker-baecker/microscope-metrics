@@ -102,11 +102,17 @@ class Analysis(ABC):
     def set_metadata(self, name: str, value):
         self.input.set_metadata(name, value)
 
-    def empty_metadata(self, name: str):
-        self.input.empty_metadata(name)
+    def empty_metadata(self, name: str, replace_with_default: bool = True):
+        self.input.empty_metadata(name, replace_with_default)
 
-    def get_metadata(self, name: Union[str, list] = None):
-        self.input.get_metadata(name)
+    def get_metadata_values(self, name: Union[str, list]):
+        return self.input.get_metadata_values(name)
+
+    def get_metadata_units(self, name: Union[str, list]):
+        return self.input.get_metadata_units(name)
+
+    def get_metadata_defaults(self, name: Union[str, list]):
+        return self.input.get_metadata_defaults(name)
 
     def _verify_limits(self, key_values, config, object_ref):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the

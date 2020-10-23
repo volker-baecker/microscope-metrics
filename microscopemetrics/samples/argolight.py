@@ -5,6 +5,7 @@ from typing import Union, Tuple, List
 
 # Import analysis tools
 import numpy as np
+from pandas import DataFrame
 from skimage.transform import hough_line  # hough_line_peaks, probabilistic_hough_line
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
@@ -56,19 +57,19 @@ class ArgolightAnalysis(Analysis):
                              description='Smoothing factor for objects detection',
                              requirement_type=Tuple[float, float, float],
                              optional=True,
-                             default=(3, 3, 1))
+                             default=(1, 3, 3))
         self.add_requirement(name='lower_threshold_correction_factors',
                              description='Correction factor for the lower thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
                              requirement_type=Union[List[float], Tuple[float], float],
                              optional=True,
-                             default=0.8)
+                             default=None)
         self.add_requirement(name='upper_threshold_correction_factors',
                              description='Correction factor for the upper thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
                              requirement_type=Union[List[float], Tuple[float], float],
                              optional=True,
-                             default=1.0)
+                             default=None)
         self.add_requirement(name='remove_center_cross',
                              description='Remove the center cross found in some Argolight patterns',
                              requirement_type=bool,
@@ -76,7 +77,7 @@ class ArgolightAnalysis(Analysis):
                              default=False)
 
     @register_image_analysis
-    def analyze_spots(self, image, config):
+    def analyze_spots(self):
         """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
 
         :param image: image instance
@@ -97,40 +98,42 @@ class ArgolightAnalysis(Analysis):
 
         # Calculating the distance between spots in pixels with a security margin
         min_distance = round(
-            (self.get_metadata('spots_distance') * 0.3) / max(self.get_metadata["pixel_size"][-2:])
+            (self.get_metadata_values('spots_distance') * 0.3) / max(self.get_metadata_values("pixel_size")[-2:])
         )
 
         # Calculating the maximum tolerated distance in microns for the same spot in a different channels
-        max_distance = self.get_metadata("spots_distance") * 0.4
+        max_distance = self.get_metadata_values("spots_distance") * 0.4
 
         labels = segment_image(
-            image=self.input.data,
+            image=self.input.data['argolight_e'],
             min_distance=min_distance,
-            sigma=self.get_metadata('sigma'),
+            sigma=self.get_metadata_values('sigma'),
             method="local_max",
-            low_corr_factors=self.get_metadata("lower_threshold_correction_factors"),
-            high_corr_factors=self.get_metadata("upper_threshold_correction_factors"),
+            low_corr_factors=self.get_metadata_values("lower_threshold_correction_factors"),
+            high_corr_factors=self.get_metadata_values("upper_threshold_correction_factors"),
         )
 
         spots_properties, spots_positions = compute_spots_properties(
-            image=self.input.data, labels=labels, remove_center_cross=self.get_metadata('remove_center_cross'),
+            image=self.input.data['argolight_e'], labels=labels, remove_center_cross=self.get_metadata_values('remove_center_cross'),
         )
 
         spots_distances = compute_distances_matrix(
             positions=spots_positions,
             max_distance=max_distance,
-            pixel_size=self.get_metadata('pixel_size'),
+            pixel_size=self.get_metadata_values('pixel_size'),
         )
 
+        output = model.MetricsOutput(description='Output from argolight.analyze_spots')
+
         # Prepare key-value pairs
-        key_values = dict()
+        key_values = {}
 
         # Prepare tables
         properties = [
             {
                 "name": "channel",
                 "desc": "Channel.",
-                "getter": lambda ch, props: [ch for x in props],
+                "getter": lambda ch, props: [ch for _ in props],
                 "data": list(),
             },
             {
@@ -148,7 +151,7 @@ class ArgolightAnalysis(Analysis):
             {
                 "name": "roi_volume_units",
                 "desc": "Volume units for the ROIs.",
-                "getter": lambda ch, props: ["VOXEL" for n in range(len(props))],
+                "getter": lambda ch, props: ["VOXEL" for _ in range(len(props))],
                 "data": list(),
             },
             {
@@ -204,7 +207,7 @@ class ArgolightAnalysis(Analysis):
             {
                 "name": "roi_weighted_centroid_units",
                 "desc": "Weighted centroid coordinates units for the ROIs.",
-                "getter": lambda ch, props: ["PIXEL" for n in range(len(props))],
+                "getter": lambda ch, props: ["PIXEL" for _ in range(len(props))],
                 "data": list(),
             },
         ]
@@ -214,7 +217,7 @@ class ArgolightAnalysis(Analysis):
                 "name": "channel_a",
                 "desc": "Channel A.",
                 "getter": lambda props: [
-                    props["channels"][0] for p in props["dist_3d"]
+                    props["channels"][0] for _ in props["dist_3d"]
                 ],
                 "data": list(),
             },
@@ -222,7 +225,7 @@ class ArgolightAnalysis(Analysis):
                 "name": "channel_b",
                 "desc": "Channel B.",
                 "getter": lambda props: [
-                    props["channels"][1] for p in props["dist_3d"]
+                    props["channels"][1] for _ in props["dist_3d"]
                 ],
                 "data": list(),
             },
@@ -265,8 +268,7 @@ class ArgolightAnalysis(Analysis):
             {
                 "name": "distances_units",
                 "desc": "Weighted Centroid distances units.",
-                "getter": lambda props: [
-                    image["pixel_size_units"][0] for n in props["dist_3d"]
+                "getter": lambda props: [self.get_metadata_values('pixel_size')[0] for _ in props["dist_3d"]
                 ],
                 "data": list(),
             },
@@ -342,26 +344,25 @@ class ArgolightAnalysis(Analysis):
                         f'median_z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'
                     ] = median([d[0].item() for d in chs_dist["dist_zxy"]])
 
-        key_values["distance_units"] = image["pixel_size_units"][0]
+        key_values["distance_units"] = self.get_metadata_units('pixel_size')
 
         # We need to add a time dimension to the labels image
         labels = np.expand_dims(labels, 2)
-        out_images = [
-            {
-                "image_data": labels,
-                "image_name": f'{image["image_name"]}_roi_masks',
-                "image_desc": f"Image with detected spots labels. Image intensities correspond to roi labels.",
-            }
-        ]
 
-        out_tags = []
-        out_dicts = [key_values]
-        out_tables = {
-            "Analysis_argolight_D_properties": properties,
-            "Analysis_argolight_D_distances": distances,
-        }
+        output.append(model.Image(name=str(self.input.data.keys()),
+                                  description="Image with detected spots labels. Image intensities correspond to roi labels.",
+                                  data=labels))
+        output.append(model.KeyValues(name='Key-Value Annotations',
+                                      description='Measurements on Argolight D pattern',
+                                      key_values=key_values))
+        output.append(model.Table(name='Properties',
+                                  description="Analysis_argolight_D_properties",
+                                  table=DataFrame.from_dict([(e['name'], e['data']) for e in properties])))
+        output.append(model.Table(name='Distances',
+                                  description="Analysis_argolight_D_distances",
+                                  table=DataFrame.from_dict([(e['name'], e['data']) for e in distances])))
 
-        return out_images, out_rois, out_tags, out_dicts, out_tables
+        return output
 
     @register_image_analysis
     def analyze_vertical_resolution(self, image, config):
