@@ -234,12 +234,13 @@ class Roi(OutputProperty):
 
 @dataclass
 class Shape(ABC):
-    z: int = field(default=None)
+    z: float = field(default=None)
     c: int = field(default=None)
     t: int = field(default=None)
     fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
     stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
     stroke_width: int = field(default=1)
+    label: str = field(default=None)
 
     # Exmaple for python 3.9 annotating units
     # z: Int['z plane number'] = field(default=None)
@@ -316,7 +317,7 @@ class KeyValues(OutputProperty):
 
     @validator('key_values', allow_reuse=True)
     def _may_be_casted_to_str(cls, k_v):
-        if all(isinstance(v, (str, int, float)) for _, v in k_v.items()):
+        if all(isinstance(v, (str, int, float, list, tuple)) for _, v in k_v.items()):
             return k_v
         else:
             raise TypeError('Values for a KeyValue property must be str, int or float')
