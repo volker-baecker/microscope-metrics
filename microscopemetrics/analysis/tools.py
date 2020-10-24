@@ -95,20 +95,23 @@ def segment_image(image,
 def _compute_channel_spots_properties(channel, label_channel, remove_center_cross=False, pixel_size=None):
     """Analyzes and extracts the properties of a single channel"""
 
-    ch_properties = list()
-
     regions = regionprops(label_channel, channel)
 
-    for region in regions:
-        ch_properties.append({'label': region.label,
-                              'area': region.area,
-                              'centroid': region.centroid,
-                              'weighted_centroid': region.weighted_centroid,
-                              'max_intensity': region.max_intensity,
-                              'mean_intensity': region.mean_intensity,
-                              'min_intensity': region.min_intensity,
-                              'integrated_intensity': region.mean_intensity * region.area
-                              })
+    ch_properties = [
+        {
+            'label': region.label,
+            'area': region.area,
+            'centroid': region.centroid,
+            'weighted_centroid': region.weighted_centroid,
+            'max_intensity': region.max_intensity,
+            'mean_intensity': region.mean_intensity,
+            'min_intensity': region.min_intensity,
+            'integrated_intensity': region.mean_intensity * region.area,
+        }
+        for region in regions
+    ]
+
+
     if remove_center_cross:  # Argolight spots pattern contains a central cross that we might want to remove
         largest_area = 0
         largest_region = None
@@ -129,7 +132,7 @@ def compute_spots_properties(image, labels, remove_center_cross=False, pixel_siz
     """Computes a number of properties for the PSF-like spots found on an image provided they are segmented"""
     # TODO: Verify dimensions of image and labels are the same
     properties = list()
-    positions = list()
+    positions = []
 
     for c in range(image.shape[1]):  # TODO: Deal with Time here
         for t in range(image.shape[2]):
@@ -149,7 +152,7 @@ def compute_distances_matrix(positions, max_distance, pixel_size=None):
     module_logger.info('Computing distances between spots')
 
     # Container for results
-    distances = list()
+    distances = []
 
     if len(positions) < 2:
         raise Exception('Not enough dimensions to do a distance measurement')
@@ -201,15 +204,13 @@ def _radial_mean(image, bins=None):
     r = np.hypot(x - size_x / 2, y - size_y / 2)
 
     rbin = (bins * r / r.max()).astype(np.int)
-    radial_mean = ndimage.mean(image, labels=rbin, index=np.arange(1, rbin.max() + 1))
 
-    return radial_mean
+    return ndimage.mean(image, labels=rbin, index=np.arange(1, rbin.max() + 1))
 
 
 def _channel_fft_2d(channel):
     channel_fft = np.fft.rfft2(channel)
-    channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), axes=1)
-    return channel_fft_magnitude
+    return np.fft.fftshift(np.abs(channel_fft), axes=1)
 
 
 def fft_2d(image):
@@ -226,8 +227,7 @@ def fft_2d(image):
 
 def _channel_fft_3d(channel):
     channel_fft = np.fft.rfftn(channel)
-    channel_fft_magnitude = np.fft.fftshift(np.abs(channel_fft), axes=1)
-    return channel_fft_magnitude
+    return np.fft.fftshift(np.abs(channel_fft), axes=1)
 
 
 def fft_3d(image):
