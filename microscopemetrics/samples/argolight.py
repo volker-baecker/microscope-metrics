@@ -32,15 +32,14 @@ class ArgolightConfigurator(Configurator):
 
 
 @ArgolightConfigurator.register_sample_analysis
-class ArgolightAnalysis(Analysis):
-    """This class handles the Argolight sample:
-    - Defines the logic of the associated analyses
-    - Defines the creation of reports"""
+class ArgolightBAnalysis(Analysis):
+    """This class handles the analysis of the Argolight sample pattern B
+    """
 
     def __init__(self):
-        description = "This analysis provides metrics on a number of the patterns found on " \
-                      "Argolight slides from http://argolight.com"
-        super().__init__(description=description)
+        super().__init__(output_description="Analysis output of the 'SPOTS' matrix (pattern B) from the argolight sample. "
+                                            "It contains chromatic shifts and homogeneity."
+                         )
         self.add_requirement(name='spots_distance',
                              description='Distance between argolight spots',
                              requirement_type=float,
@@ -75,16 +74,9 @@ class ArgolightAnalysis(Analysis):
                              requirement_type=bool,
                              optional=True,
                              default=False)
-        self.add_requirement(name='measured_band',
-                             description='Fraction of the image across which intensity profiles are measured',
-                             requirement_type=float,
-                             optional=True,
-                             default=.4)
 
     @register_image_analysis
-    def analyze_spots(self) -> object:
-        """Analyzes 'SPOTS' matrix pattern from the argolight sample. It computes chromatic shifts, homogeneity,..
-        """
+    def run(self):
         logger.info("Verifying requirements...")
         if not self.verify_requirements():
             raise Exception("Metadata requirements ara not valid")
@@ -118,8 +110,6 @@ class ArgolightAnalysis(Analysis):
             max_distance=max_distance,
             pixel_size=self.get_metadata_values('pixel_size'),
         )
-
-        output = model.MetricsOutput(description='Output from argolight.analyze_spots')
 
         # Prepare key-value pairs
         key_values = {}
@@ -309,10 +299,10 @@ class ArgolightAnalysis(Analysis):
                                           label=f'{p["label"]}')
                               for p in ch_spot_prop
                               ]
-            output.append(model.Roi(name=f'Centroids_ch{ch:03d}',
-                                    description=f"weighted centroids channel {ch}",
-                                    shapes=channel_shapes)
-                          )
+            self.output.append(model.Roi(name=f'Centroids_ch{ch:03d}',
+                                         description=f"weighted centroids channel {ch}",
+                                         shapes=channel_shapes)
+                               )
 
         # TODO: match roi labels with mask labels
         for ch, chs_dist in enumerate(spots_distances):
@@ -334,57 +324,69 @@ class ArgolightAnalysis(Analysis):
         # We need to add a time dimension to the labels image
         labels = np.expand_dims(labels, 2)
 
-        output.append(model.Image(name=list(self.input.data.keys())[0],
-                                  description="Labels iamge with detected spots. "
+        self.output.append(model.Image(name=list(self.input.data.keys())[0],
+                                  description="Labels image with detected spots. "
                                               "Image intensities correspond to roi labels.",
                                   data=labels)
                       )
 
-        output.append(model.KeyValues(name='Key-Value Annotations',
+        self.output.append(model.KeyValues(name='Key-Value Annotations',
                                       description='Measurements on Argolight D pattern',
                                       key_values=key_values)
                       )
 
-        output.append(model.Table(name='Properties',
+        self.output.append(model.Table(name='Properties',
                                   description="Analysis_argolight_D_properties",
                                   table=DataFrame({e['name']: e['data'] for e in properties})
                                   )
                       )
 
-        output.append(model.Table(name='Distances',
+        self.output.append(model.Table(name='Distances',
                                   description="Analysis_argolight_D_distances",
                                   table=DataFrame({e['name']: e['data'] for e in distances})
                                   )
                       )
 
-        return output
+
+@ArgolightConfigurator.register_sample_analysis
+class ArgolightEAnalysis(Analysis):
+    """This class handles the analysis of the Argolight sample pattern E with lines along the X or Y axis
+    """
+    def __init__(self):
+        super().__init__(
+            output_description="Analysis output of the lines (pattern E) from the argolight sample. "
+                               "It contains resolution data on the axis indicated:"
+                               "- axis 1 = Y resolution = lines along X axis"
+                               "- axis 2 = X resolution = lines along Y axis"
+            )
+        self.add_requirement(name='pixel_size',
+                             description='Physical size of the voxel in z, y and x',
+                             requirement_type=Tuple[float, float, float],
+                             units='MICRON',
+                             optional=False
+                             )
+        self.add_requirement(name='axis',
+                             description='axis along which resolution is being measured. 1=Y, 2=X',
+                             requirement_type=int,
+                             optional=False
+                             )
+        self.add_requirement(name='measured_band',
+                             description='Fraction of the image across which intensity profiles are measured',
+                             requirement_type=float,
+                             optional=True,
+                             default=.4
+                             )
 
     @register_image_analysis
-    def analyze_vertical_resolution(self):
+    def run(self):
         """A intermediate function to specify the axis to be analyzed"""
-        return self._analyze_resolution(image=self.input.data['argolight_e_horizontal'], axis=1)
+        self._analyze_resolution(image=self.input.data['argolight_e'],
+                                 axis=self.get_metadata_values('axis'),
+                                 measured_band=self.get_metadata_values("measured_band"),
+                                 pixel_size=self.get_metadata_values('pixel_size'),
+                                 pixel_size_units=self.get_metadata_units('pixel_size'))
 
-    @register_image_analysis
-    def analyze_horizontal_resolution(self):
-        """A intermediate function to specify the axis to be analyzed"""
-        return self._analyze_resolution(image=self.input.data['argolight_e_vertical'], axis=2)
-
-    def _analyze_resolution(self, image, axis):
-        """Analyzes 'LINES' pattern from the argolight sample. It computes resolution along a specific axis,..
-
-        :param image: image instance
-        :param axis: axis in which resolution is measured
-        :param config: MetricsConfig instance defining analysis configuration.
-                       Must contain the analysis parameters defined by the configurator
-
-        :returns a list of images
-                 a list of rois
-                 a list of tags
-                 a list of dicts
-                 a dict containing table_names and tables
-        """
-
-        output = model.MetricsOutput()
+    def _analyze_resolution(self, image, axis, measured_band, pixel_size, pixel_size_units):
         (
             profiles,
             z_planes,
@@ -396,21 +398,21 @@ class ArgolightAnalysis(Analysis):
         ) = _compute_resolution(
             image=image,
             axis=axis,
-            measured_band=self.get_metadata_values("measured_band"),
+            measured_band=measured_band,
             prominence=0.264,
             do_angle_refinement=False,
         )
         # resolution in native units
-        resolution_values = [x * self.get_metadata_values("pixel_size")[axis] for x in resolution_values]
+        resolution_values = [x * pixel_size[axis] for x in resolution_values]
 
         key_values = {
             f"ch{ch:02d}_{resolution_method}_resolution": res.item()
             for ch, res in enumerate(resolution_values)
         }
 
-        key_values["resolution_units"] = self.get_metadata_units("pixel_size")
+        key_values["resolution_units"] = pixel_size_units
         key_values["resolution_axis"] = axis
-        key_values["measured_band"] = self.get_metadata_values("measured_band")
+        key_values["measured_band"] = measured_band
 
         for ch, indexes in enumerate(resolution_indexes):
             key_values[f"peak_positions_ch{ch:02d}"] = [
@@ -436,24 +438,24 @@ class ArgolightAnalysis(Analysis):
                         axis_len = image.shape[-2]
                         x1_pos = int(
                             (axis_len / 2)
-                            - (axis_len * self.get_metadata_values("measured_band") / 2)
+                            - (axis_len * measured_band / 2)
                         )
                         y1_pos = peak + 0.5
                         x2_pos = int(
                             (axis_len / 2)
-                            + (axis_len * self.get_metadata_values("measured_band") / 2)
+                            + (axis_len * measured_band / 2)
                         )
                         y2_pos = peak + 0.5
                     elif axis == 2:  # X resolution -> vertical rois
                         axis_len = image.shape[-1]
                         y1_pos = int(
                             (axis_len / 2)
-                            - (axis_len * self.get_metadata_values("measured_band") / 2)
+                            - (axis_len * measured_band / 2)
                         )
                         x1_pos = peak + 0.5
                         y2_pos = int(
                             (axis_len / 2)
-                            + (axis_len * self.get_metadata_values("measured_band") / 2)
+                            + (axis_len * measured_band / 2)
                         )
                         x2_pos = peak + 0.5
 
@@ -465,23 +467,19 @@ class ArgolightAnalysis(Analysis):
                                              c=ch)
                                   )
 
-            output.append(model.Roi(name=f"Peaks_ch{ch:03d}",
-                                    description=f"Lines where highest Rayleigh resolution was found in channel {ch}",
-                                    shapes=shapes)
-                          )
-
-        output.append(model.KeyValues(name='Key-Value Annotations',
-                                      description=f'Measurements on Argolight E pattern along axis={axis}',
-                                      key_values=key_values)
-                      )
-
-        output.append(model.Table(name='Profiles',
-                                  description='Raw and fitted profiles across the center of the image along the '
-                                              'defined axis',
-                                  table=DataFrame.from_dict(out_tables))
-                      )
-
-        return output
+            self.output.append(model.Roi(name=f"Peaks_ch{ch:03d}",
+                                         description=f"Lines where highest Rayleigh resolution was found in channel {ch}",
+                                         shapes=shapes)
+                               )
+        self.output.append(model.KeyValues(name='Key-Value Annotations',
+                                           description=f'Measurements on Argolight E pattern along axis={axis}',
+                                           key_values=key_values)
+                           )
+        self.output.append(model.Table(name='Profiles',
+                                       description='Raw and fitted profiles across the center of the image along the '
+                                                   'defined axis',
+                                       table=DataFrame.from_dict(out_tables))
+                           )
 
 
 class ArgolightReporter(Reporter):

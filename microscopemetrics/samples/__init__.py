@@ -32,11 +32,6 @@ def register_progression_analysis(fn):
 logger = logging.getLogger(__name__)
 
 
-# class Analysis(ABC):
-#     def __init__(self):
-#         pass
-#
-
 class Configurator(ABC):
     """This is a superclass taking care of the configuration of a new sample. Helps generating configuration files and
     defines the metadata required for the different analyses. You should subclass this when you create a
@@ -61,10 +56,10 @@ class Configurator(ABC):
 
 class Analysis(ABC):
     """This is the superclass defining the interface to a sample object. You should subclass this when you create a
-    new sample."""
-    def __init__(self, description):
+    new sample analysis."""
+    def __init__(self, output_description):
         self.input = model.MetricsDataset()
-        self.output = model.MetricsOutput(description=description)
+        self.output = model.MetricsOutput(description=output_description)
 
     @classmethod
     def get_name(cls):
@@ -113,6 +108,10 @@ class Analysis(ABC):
 
     def get_metadata_defaults(self, name: Union[str, list]):
         return self.input.get_metadata_defaults(name)
+
+    @abstractmethod
+    def run(self):
+        raise NotImplemented()
 
     def _verify_limits(self, key_values, config, object_ref):
         """Verifies that the numeric values provided in the key_values dictionary are within the ranges found in the

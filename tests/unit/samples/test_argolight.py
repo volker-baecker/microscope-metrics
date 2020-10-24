@@ -18,7 +18,7 @@ def argolight_b():
         repos.open(file_url)
 
 
-    analysis = argolight.ArgolightAnalysis()
+    analysis = argolight.ArgolightBAnalysis()
     analysis.input.data = {'argolight_b': data}
     analysis.set_metadata('spots_distance', 5)
     analysis.set_metadata('pixel_size', (.125, .39, .39))
@@ -29,26 +29,6 @@ def argolight_b():
 @pytest.fixture
 def argolight_e_horizontal():
     temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
-    file_name = '201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
-    file_url = 'http://dev.mri.cnrs.fr/attachments/download/2291/201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
-    try:
-        data = np.load(path.join(temp_dir, file_name))
-    except FileNotFoundError as e:
-        repos = np.DataSource(temp_dir)
-        repos.open(file_url)
-
-
-    analysis = argolight.ArgolightAnalysis()
-    analysis.input.data = {'argolight_e_horizontal': data}
-    analysis.set_metadata('spots_distance', 5)
-    analysis.set_metadata('pixel_size', (.125, .39, .39))
-
-    return analysis
-
-
-@pytest.fixture
-def argolight_e_vertical():
-    temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
     file_name = '201702_RI510_Argolight-1-1_005_SIR_ALX.npy'
     file_url = 'http://dev.mri.cnrs.fr/attachments/download/2292/201702_RI510_Argolight-1-1_005_SIR_ALX.npy'
     try:
@@ -57,28 +37,46 @@ def argolight_e_vertical():
         repos = np.DataSource(temp_dir)
         repos.open(file_url)
 
-
-    analysis = argolight.ArgolightAnalysis()
-    analysis.input.data = {'argolight_e_vertical': data}
-    analysis.set_metadata('spots_distance', 5)
+    analysis = argolight.ArgolightEAnalysis()
+    analysis.input.data = {'argolight_e': data}
     analysis.set_metadata('pixel_size', (.125, .39, .39))
+    analysis.set_metadata('axis', 2)
+
+    return analysis
+
+
+@pytest.fixture
+def argolight_e_vertical():
+    temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
+    file_name = '201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
+    file_url = 'http://dev.mri.cnrs.fr/attachments/download/2291/201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
+    try:
+        data = np.load(path.join(temp_dir, file_name))
+    except FileNotFoundError as e:
+        repos = np.DataSource(temp_dir)
+        repos.open(file_url)
+
+    analysis = argolight.ArgolightEAnalysis()
+    analysis.input.data = {'argolight_e': data}
+    analysis.set_metadata('pixel_size', (.125, .39, .39))
+    analysis.set_metadata('axis', 1)
 
     return analysis
 
 
 def test_run_argolight_b(argolight_b):
-    output = argolight_b.analyze_spots()
-    assert output
+    argolight_b.run()
+    assert argolight_b.output
 
 
 def test_run_argolight_e_horizontal(argolight_e_horizontal):
-    output = argolight_e_horizontal.analyze_vertical_resolution()
-    assert output
+    argolight_e_horizontal.run()
+    assert argolight_e_horizontal.output
 
 
 def test_run_argolight_e_vertical(argolight_e_vertical):
-    output = argolight_e_vertical.analyze_horizontal_resolution()
-    assert output
+    argolight_e_vertical.run()
+    assert argolight_e_vertical.output
 
 
 
