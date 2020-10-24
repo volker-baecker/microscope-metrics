@@ -1,6 +1,5 @@
 from enum import Enum, EnumMeta
 from configparser import NoOptionError
-from collections import Iterable
 from math import sin, asin, cos
 
 
