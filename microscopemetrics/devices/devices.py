@@ -1,6 +1,5 @@
 from enum import Enum, EnumMeta
 from configparser import NoOptionError
-from collections import Iterable
 from math import sin, asin, cos
 
 
@@ -96,7 +95,7 @@ class Device:
     """A superclass for all the microscope devices and eventually other type of devices."""
     def __init__(self, device_config):
         self.device_config = device_config
-        self._settings = dict()
+        self._settings = {}
 
     def add_setting(self, name, dtype, get_from_db_func, get_from_conf_func, get_from_name_func, set_func, values=None):
         """Add a setting definition.

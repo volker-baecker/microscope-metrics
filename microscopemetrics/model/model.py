@@ -40,19 +40,21 @@ class MetricsDataset:
     data: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def add_metadata(self, name: str, description: str, type, optional: bool):
+    def add_metadata_requirement(self, name: str, description: str, md_type, optional: bool, units: str = None, default: Any = None):
         self.metadata[name] = {'description': description,
-                               'type': type,
+                               'type': md_type,
                                'optional': optional,
-                               'value': None}
+                               'value': default,
+                               'units': units,
+                               'default': default}
 
-    def remove_metadata(self, name: str):
+    def remove_metadata_requirement(self, name: str):
         try:
             del (self.metadata[name])
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
-    def describe_metadata(self):
+    def describe_metadata_requirement(self):
         str_output = []
         for name, req in self.metadata.items():
             str_output.append('----------')
@@ -66,13 +68,13 @@ class MetricsDataset:
         validated = []
         reasons = []
         for name, req in self.metadata.items():
-            v, r = self._validate_requirement(name, req, strict)
+            v, r = self._verify_requirement(name, req, strict)
             validated.append(v)
             reasons.append(r)
         return all(validated), reasons
 
     @staticmethod
-    def _validate_requirement(name, requirement, strict):
+    def _verify_requirement(name, requirement, strict):
         if requirement['optional'] and not strict:
             return True, f'{name} is optional'
         else:
@@ -85,18 +87,38 @@ class MetricsDataset:
                 except TypeError:
                     return False, f'{name} is not of the correct type ({requirement["type"]})'
 
-    def get_metadata(self, name: Union[str, list] = None):
-        if name is None:
-            return self.metadata
-        elif isinstance(name, str):
+    def get_metadata_values(self, name: Union[str, list]):
+        if isinstance(name, str):
             try:
                 return self.metadata[name]['value']
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
-            return {k: self.get_metadata(k) for k in name}
+            return {k: self.get_metadata_values(k) for k in name}
         else:
-            raise TypeError('get_metadata requires a string or list of strings')
+            raise TypeError('get_metadata_values requires a string or list of strings')
+
+    def get_metadata_units(self, name: Union[str, list]):
+        if isinstance(name, str):
+            try:
+                return self.metadata[name]['units']
+            except KeyError as e:
+                raise KeyError(f'Metadatum "{name}" does not exist') from e
+        elif isinstance(name, list):
+            return {k: self.get_metadata_units(k) for k in name}
+        else:
+            raise TypeError('get_metadata_units requires a string or list of strings')
+
+    def get_metadata_defaults(self, name: Union[str, list]):
+        if isinstance(name, str):
+            try:
+                return self.metadata[name]['default']
+            except KeyError as e:
+                raise KeyError(f'Metadatum "{name}" does not exist') from e
+        elif isinstance(name, list):
+            return {k: self.get_metadata_defaults(k) for k in name}
+        else:
+            raise TypeError('get_metadata_units requires a string or list of strings')
 
     def set_metadata(self, name: str, value):
         try:
@@ -106,12 +128,14 @@ class MetricsDataset:
         check_type(name, value, expected_type)
         self.metadata[name]['value'] = value
 
-    def empty_metadata(self, name: str):
+    def empty_metadata(self, name: str, replace_with_default: bool):
         try:
-            self.metadata[name]['value'] = None
+            if replace_with_default:
+                self.metadata[name]['value'] = self.metadata[name]['default']
+            else:
+                self.metadata[name]['value'] = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
-
 
     def del_metadata(self, name: str):
         try:
@@ -210,12 +234,13 @@ class Roi(OutputProperty):
 
 @dataclass
 class Shape(ABC):
-    z: int = field(default=None)
+    z: float = field(default=None)
     c: int = field(default=None)
     t: int = field(default=None)
     fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
     stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
     stroke_width: int = field(default=1)
+    label: str = field(default=None)
 
     # Exmaple for python 3.9 annotating units
     # z: Int['z plane number'] = field(default=None)
@@ -292,7 +317,7 @@ class KeyValues(OutputProperty):
 
     @validator('key_values', allow_reuse=True)
     def _may_be_casted_to_str(cls, k_v):
-        if all(isinstance(v, (str, int, float)) for _, v in k_v.items()):
+        if all(isinstance(v, (str, int, float, list, tuple)) for _, v in k_v.items()):
             return k_v
         else:
             raise TypeError('Values for a KeyValue property must be str, int or float')

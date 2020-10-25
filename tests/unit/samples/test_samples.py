@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import numpy as np
 
@@ -11,7 +11,7 @@ def sample_analysis():
     class MyAnalysis(Analysis):
         def __init__(self):
             description = "This is the description of the analysis class"
-            super().__init__(description=description)
+            super().__init__(output_description=description)
             self.add_requirement('pixel_sizes',
                                  'This is the physical sizes of the pixels',
                                  Tuple[float, float, float],
@@ -26,7 +26,7 @@ def sample_analysis():
                                  True)
 
         @register_image_analysis
-        def analyze_some_image_feature(self):
+        def run(self):
             new_array = self.input.data + 1
             new_image = model.Image(name='output_image',
                                     description="Just a sum of 1 to input data",
@@ -68,7 +68,7 @@ def test_analysis_requirements(sample_analysis_with_data):
 
     assert sample_analysis_with_data.verify_requirements() is True
     with pytest.raises(KeyError):
-        sample_analysis_with_data.input.remove_metadata('non_existing')
+        sample_analysis_with_data.input.remove_metadata_requirement('non_existing')
     sample_analysis_with_data.empty_metadata('pixel_sizes')
     assert sample_analysis_with_data.verify_requirements() is False
     sample_analysis_with_data.set_metadata('pixel_sizes', (.2, .2, .5))
@@ -81,7 +81,7 @@ def test_analysis_inheritance(sample_analysis_with_data):
 
     assert sample_analysis_with_data.verify_requirements(strict=True) is True
 
-    IMAGE_ANALYSIS_REGISTRY['analyze_some_image_feature'](sample_analysis_with_data)
+    IMAGE_ANALYSIS_REGISTRY['run'](sample_analysis_with_data)
 
     assert len(sample_analysis_with_data.output.get_rois()) == 1
 
