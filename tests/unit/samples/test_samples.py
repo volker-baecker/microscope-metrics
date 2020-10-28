@@ -66,20 +66,20 @@ def sample_analysis_with_data(sample_analysis):
 
 def test_analysis_requirements(sample_analysis_with_data):
 
-    assert sample_analysis_with_data.verify_requirements() is True
+    assert sample_analysis_with_data.validate_requirements() is True
     with pytest.raises(KeyError):
         sample_analysis_with_data.input.remove_metadata_requirement('non_existing')
-    sample_analysis_with_data.empty_metadata('pixel_sizes')
-    assert sample_analysis_with_data.verify_requirements() is False
+    sample_analysis_with_data.delete_metadata('pixel_sizes')
+    assert sample_analysis_with_data.validate_requirements() is False
     sample_analysis_with_data.set_metadata('pixel_sizes', (.2, .2, .5))
-    assert sample_analysis_with_data.verify_requirements() is True
+    assert sample_analysis_with_data.validate_requirements() is True
 
 
 def test_analysis_inheritance(sample_analysis_with_data):
 
     assert isinstance(sample_analysis_with_data, Analysis)
 
-    assert sample_analysis_with_data.verify_requirements(strict=True) is True
+    assert sample_analysis_with_data.validate_requirements() is True
 
     IMAGE_ANALYSIS_REGISTRY['run'](sample_analysis_with_data)
 

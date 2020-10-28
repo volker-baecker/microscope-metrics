@@ -42,43 +42,43 @@ class ArgolightBAnalysis(Analysis):
                          )
         self.add_requirement(name='spots_distance',
                              description='Distance between argolight spots',
-                             requirement_type=float,
+                             data_type=float,
                              units='MICRON',
                              optional=False,
                              default=None)
         self.add_requirement(name='pixel_size',
                              description='Physical size of the voxel in z, y and x',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              units='MICRON',
                              optional=False,
                              default=None)
         self.add_requirement(name='sigma',
                              description='Smoothing factor for objects detection',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              optional=True,
                              default=(1, 3, 3))
         self.add_requirement(name='lower_threshold_correction_factors',
                              description='Correction factor for the lower thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
-                             requirement_type=Union[List[float], Tuple[float], float],
+                             data_type=Union[List[float], Tuple[float], float],
                              optional=True,
                              default=None)
         self.add_requirement(name='upper_threshold_correction_factors',
                              description='Correction factor for the upper thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
-                             requirement_type=Union[List[float], Tuple[float], float],
+                             data_type=Union[List[float], Tuple[float], float],
                              optional=True,
                              default=None)
         self.add_requirement(name='remove_center_cross',
                              description='Remove the center cross found in some Argolight patterns',
-                             requirement_type=bool,
+                             data_type=bool,
                              optional=True,
                              default=False)
 
     @register_image_analysis
     def run(self):
-        logger.info("Verifying requirements...")
-        if not self.verify_requirements():
+        logger.info("Validating requirements...")
+        if not self.validate_requirements():
             raise Exception("Metadata requirements ara not valid")
 
         logger.info("Analyzing spots image...")
@@ -361,18 +361,18 @@ class ArgolightEAnalysis(Analysis):
             )
         self.add_requirement(name='pixel_size',
                              description='Physical size of the voxel in z, y and x',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              units='MICRON',
                              optional=False
                              )
         self.add_requirement(name='axis',
                              description='axis along which resolution is being measured. 1=Y, 2=X',
-                             requirement_type=int,
+                             data_type=int,
                              optional=False
                              )
         self.add_requirement(name='measured_band',
                              description='Fraction of the image across which intensity profiles are measured',
-                             requirement_type=float,
+                             data_type=float,
                              optional=True,
                              default=.4
                              )

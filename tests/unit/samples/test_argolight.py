@@ -17,7 +17,6 @@ def argolight_b():
         repos = np.DataSource(temp_dir)
         repos.open(file_url)
 
-
     analysis = argolight.ArgolightBAnalysis()
     analysis.input.data = {'argolight_b': data}
     analysis.set_metadata('spots_distance', 5)
