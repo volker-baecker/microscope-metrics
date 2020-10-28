@@ -12,18 +12,18 @@ def sample_analysis():
         def __init__(self):
             description = "This is the description of the analysis class"
             super().__init__(output_description=description)
-            self.add_requirement('pixel_sizes',
-                                 'This is the physical sizes of the pixels',
-                                 Tuple[float, float, float],
-                                 False)
-            self.add_requirement('emission_wavelengths',
-                                 'Emission Wavelengths',
-                                 Tuple,
-                                 False)
-            self.add_requirement('display_color',
-                                 'This will make it rainbowy',
-                                 str,
-                                 True)
+            self.add_requirement(name='pixel_sizes',
+                                 description='This is the physical sizes of the pixels',
+                                 data_type=Tuple[float, float, float],
+                                 optional=False)
+            self.add_requirement(name='emission_wavelengths',
+                                 description='Emission Wavelengths',
+                                 data_type=tuple,
+                                 optional=False)
+            self.add_requirement(name='display_color',
+                                 description='This will make it rainbowy',
+                                 data_type=str,
+                                 optional=True)
 
         @register_image_analysis
         def run(self):

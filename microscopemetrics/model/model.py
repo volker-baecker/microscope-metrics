@@ -4,12 +4,12 @@ It creates a few classes representing input data and output data
 from abc import ABC
 from dataclasses import field
 from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, validate_arguments, validator, BaseConfig
+from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
 from pydantic.color import Color
 
-# TODO: remove this dependency and use pydantic
-from typeguard import check_type
-
+# # TODO: remove this dependency and use pydantic
+# from typeguard import check_type
+#
 from pandas import DataFrame
 from numpy import ndarray
 
@@ -37,42 +37,42 @@ class MetadataConfig(BaseConfig):
     validate_assignment = True
 
 
-@dataclass(config=MetadataConfig)
-class MetaDataRequirement:
-    name: str
-    _value: Any = field(default=None, init=False, repr=False)
-    md_type: Any
-    description: str
-    optional: bool
-    units: str = None
-    default: Any = None
-
-    @property
-    def value(self):
-        if self._value is None:
-            return self.default
-        return self._value
-
-    @value.setter
-    def value(self, v):
-        check_type(self.name, v, self.md_type)
-        self._value = v
-
-    @value.deleter
-    def value(self):
-        self._value = None
-
-    # noinspection PyMethodParameters
-    # @validator('value')
-    # def _value_validator(cls, v, values):
-    #     if v is None and values['optional']:
-    #         return v
-    #     check_type(values['name'], v, values['md_type'])
-    #     return v
-
-    def __post_init__(self):
-        if self.default is not None:
-            self.value = self.default
+# @dataclass(config=MetadataConfig)
+# class MetaDataRequirement(BaseModel):
+#     name: str
+#     data_type: Any
+#     description: str
+#     optional: bool
+#     units: str = None
+#     default: Any = None
+#     value_: Any = None  # field(default=None, repr=False)
+#
+#     class Config:
+#         validate_assignment = True
+#
+#     @validator('value_')
+#     def _validate_value(cls, v, values):
+#         check_type(values['name'], v, values['md_type'])
+#         return v
+#
+#     @property
+#     def value(self):
+#         if self.value_ is None:
+#             return self.default
+#         return self.value_
+#
+#     @value.setter
+#     def value(self, v):
+#         # check_type(self.name, v, self.md_type)
+#         self.value_ = v
+#
+#     @value.deleter
+#     def value(self):
+#         self.value_ = None
+#
+#     def __post_init__(self):
+#         if self.default is not None:
+#             self.value = self.default
 
 
 @dataclass
@@ -93,13 +93,26 @@ class MetricsDataset:
                                  replace: bool = False):
         if not replace and name in self.metadata:
             raise KeyError(f'The key {name} is already used. Use argument replace=True to explicitly replace it')
-        self.metadata[name] = MetaDataRequirement(name=name,
-                                                  md_type=data_type,
-                                                  description=description,
-                                                  optional=optional,
-                                                  units=units,
-                                                  default=default
-                                                  )
+
+        model = create_model(name,
+                             # md_type=data_type,
+                             value=(data_type, default),
+                             description=(str, description),
+                             optional=(bool, optional),
+                             units=(str, units),
+                             default=(data_type, default),
+                             __config__=MetadataConfig)
+
+        self.metadata[name] = model()
+        setattr(self, name, self.metadata[name])
+
+        # self.metadata[name] = MetaDataRequirement(name=name,
+        #                                           data_type=data_type,
+        #                                           description=description,
+        #                                           optional=optional,
+        #                                           units=units,
+        #                                           default=default
+        #                                           )
 
     def remove_metadata_requirement(self, name: str):
         try:
@@ -161,7 +174,7 @@ class MetricsDataset:
 
     def del_metadata(self, name: str):
         try:
-            del self.metadata[name].value
+            self.metadata[name].value = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
