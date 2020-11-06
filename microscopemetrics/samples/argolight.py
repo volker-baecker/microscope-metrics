@@ -575,31 +575,13 @@ class ArgolightReporter(Reporter):
                     if col.name == "integrated_intensity"
                 ]
             )
-
-        :param image: image instance
-        :param config: MetricsConfig instance defining analysis configuration.
-                       Must contain the analysis parameters defined by the configurator
-
-        :returns a list of images
-                 a list of rois
-                 a list of tags
-                 a list of dicts
-                 a dict containing table_names and tables    x_positions = np.array(
+            x_positions = np.array(
                 [
                     val
                     for col in data.columns
                     for val in col.values
                     if col.name == "x_weighted_centroid"
-
-        :param image: image instance
-        :param config: MetricsConfig instance defining analysis configuration.
-                       Must contain the analysis parameters defined by the configurator
-
-        :returns a list of images
-                 a list of rois
-                 a list of tags
-                 a list of dicts
-                 a dict containing table_names and tables        ]
+                ]
             )
             y_positions = np.array(
                 [
@@ -704,7 +686,7 @@ class ArgolightReporter(Reporter):
                     "y_weighted_centroid",
                 ]
                 ],
-                pos_table.getWhereList(
+           Added some constants for directories to test data     pos_table.getWhereList(
                     condition=f"channel=={ch_A}",
                     variables={},
                     start=0,
