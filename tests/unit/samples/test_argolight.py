@@ -1,6 +1,6 @@
 import pytest
 from os import path
-
+from tests.constants import *
 
 from microscopemetrics.samples import argolight
 import numpy as np
@@ -8,7 +8,7 @@ import numpy as np
 
 @pytest.fixture
 def argolight_b():
-    temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
+    temp_dir = path.abspath(TEST_DATA_DIR)
     file_name = '201702_RI510_Argolight-1-1_010_SIR_ALX.npy'
     file_url = 'http://dev.mri.cnrs.fr/attachments/download/2290/201702_RI510_Argolight-1-1_010_SIR_ALX.npy'
     try:
@@ -16,6 +16,7 @@ def argolight_b():
     except FileNotFoundError as e:
         repos = np.DataSource(temp_dir)
         repos.open(file_url)
+        raise Exception from e
 
     analysis = argolight.ArgolightBAnalysis()
     analysis.input.data = {'argolight_b': data}
@@ -27,7 +28,7 @@ def argolight_b():
 
 @pytest.fixture
 def argolight_e_horizontal():
-    temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
+    temp_dir = path.abspath(TEST_DATA_DIR)
     file_name = '201702_RI510_Argolight-1-1_005_SIR_ALX.npy'
     file_url = 'http://dev.mri.cnrs.fr/attachments/download/2292/201702_RI510_Argolight-1-1_005_SIR_ALX.npy'
     try:
@@ -35,6 +36,7 @@ def argolight_e_horizontal():
     except FileNotFoundError as e:
         repos = np.DataSource(temp_dir)
         repos.open(file_url)
+        raise Exception from e
 
     analysis = argolight.ArgolightEAnalysis()
     analysis.input.data = {'argolight_e': data}
@@ -46,7 +48,7 @@ def argolight_e_horizontal():
 
 @pytest.fixture
 def argolight_e_vertical():
-    temp_dir = path.abspath('/Users/julio/PycharmProjects/microscope-metrics/tests/data/')
+    temp_dir = path.abspath(TEST_DATA_DIR)
     file_name = '201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
     file_url = 'http://dev.mri.cnrs.fr/attachments/download/2291/201702_RI510_Argolight-1-1_004_SIR_ALX.npy'
     try:
@@ -54,6 +56,7 @@ def argolight_e_vertical():
     except FileNotFoundError as e:
         repos = np.DataSource(temp_dir)
         repos.open(file_url)
+        raise Exception from e
 
     analysis = argolight.ArgolightEAnalysis()
     analysis.input.data = {'argolight_e': data}
