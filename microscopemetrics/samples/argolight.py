@@ -79,7 +79,8 @@ class ArgolightBAnalysis(Analysis):
     def run(self):
         logger.info("Validating requirements...")
         if not self.validate_requirements():
-            raise Exception("Metadata requirements ara not valid")
+            logger.error("Metadata requirements ara not valid")
+            return False
 
         logger.info("Analyzing spots image...")
 
@@ -325,27 +326,29 @@ class ArgolightBAnalysis(Analysis):
         labels = np.expand_dims(labels, 2)
 
         self.output.append(model.Image(name=list(self.input.data.keys())[0],
-                                  description="Labels image with detected spots. "
-                                              "Image intensities correspond to roi labels.",
-                                  data=labels)
-                      )
+                                       description="Labels image with detected spots. "
+                                                   "Image intensities correspond to roi labels.",
+                                       data=labels)
+                           )
 
         self.output.append(model.KeyValues(name='Key-Value Annotations',
-                                      description='Measurements on Argolight D pattern',
-                                      key_values=key_values)
-                      )
+                                           description='Measurements on Argolight D pattern',
+                                           key_values=key_values)
+                           )
 
         self.output.append(model.Table(name='Properties',
-                                  description="Analysis_argolight_D_properties",
-                                  table=DataFrame({e['name']: e['data'] for e in properties})
-                                  )
-                      )
+                                       description="Analysis_argolight_D_properties",
+                                       table=DataFrame({e['name']: e['data'] for e in properties})
+                                       )
+                           )
 
         self.output.append(model.Table(name='Distances',
-                                  description="Analysis_argolight_D_distances",
-                                  table=DataFrame({e['name']: e['data'] for e in distances})
-                                  )
-                      )
+                                       description="Analysis_argolight_D_distances",
+                                       table=DataFrame({e['name']: e['data'] for e in distances})
+                                       )
+                           )
+
+        return True
 
 
 @ArgolightConfigurator.register_sample_analysis
@@ -380,11 +383,19 @@ class ArgolightEAnalysis(Analysis):
     @register_image_analysis
     def run(self):
         """A intermediate function to specify the axis to be analyzed"""
-        self._analyze_resolution(image=self.input.data['argolight_e'],
-                                 axis=self.get_metadata_values('axis'),
-                                 measured_band=self.get_metadata_values("measured_band"),
-                                 pixel_size=self.get_metadata_values('pixel_size'),
-                                 pixel_size_units=self.get_metadata_units('pixel_size'))
+
+        logger.info("Validating requirements...")
+        if not self.validate_requirements():
+            logger.error("Metadata requirements ara not valid")
+            return False
+
+        logger.info("Analyzing resolution...")
+
+        return self._analyze_resolution(image=self.input.data['argolight_e'],
+                                        axis=self.get_metadata_values('axis'),
+                                        measured_band=self.get_metadata_values("measured_band"),
+                                        pixel_size=self.get_metadata_values('pixel_size'),
+                                        pixel_size_units=self.get_metadata_units('pixel_size'))
 
     def _analyze_resolution(self, image, axis, measured_band, pixel_size, pixel_size_units):
         (
@@ -481,6 +492,8 @@ class ArgolightEAnalysis(Analysis):
                                        table=DataFrame.from_dict(out_tables))
                            )
 
+        return True
+
 
 class ArgolightReporter(Reporter):
     """Reporter subclass to produce Argolight sample figures"""
@@ -562,13 +575,31 @@ class ArgolightReporter(Reporter):
                     if col.name == "integrated_intensity"
                 ]
             )
-            x_positions = np.array(
+
+        :param image: image instance
+        :param config: MetricsConfig instance defining analysis configuration.
+                       Must contain the analysis parameters defined by the configurator
+
+        :returns a list of images
+                 a list of rois
+                 a list of tags
+                 a list of dicts
+                 a dict containing table_names and tables    x_positions = np.array(
                 [
                     val
                     for col in data.columns
                     for val in col.values
                     if col.name == "x_weighted_centroid"
-                ]
+
+        :param image: image instance
+        :param config: MetricsConfig instance defining analysis configuration.
+                       Must contain the analysis parameters defined by the configurator
+
+        :returns a list of images
+                 a list of rois
+                 a list of tags
+                 a list of dicts
+                 a dict containing table_names and tables        ]
             )
             y_positions = np.array(
                 [

@@ -64,17 +64,17 @@ def argolight_e_vertical():
 
 
 def test_run_argolight_b(argolight_b):
-    argolight_b.run()
+    assert argolight_b.run()
     assert argolight_b.output
 
 
 def test_run_argolight_e_horizontal(argolight_e_horizontal):
-    argolight_e_horizontal.run()
+    assert argolight_e_horizontal.run()
     assert argolight_e_horizontal.output
 
 
 def test_run_argolight_e_vertical(argolight_e_vertical):
-    argolight_e_vertical.run()
+    assert argolight_e_vertical.run()
     assert argolight_e_vertical.output
 
 
