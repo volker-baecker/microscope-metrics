@@ -85,7 +85,7 @@ def test_add_remove_input_metadata_requirements(empty_input_dataset):
                                                  optional=False)
     assert empty_input_dataset.get_metadata_values('pixel_size') is None
     assert empty_input_dataset.metadata['pixel_size'].description == 'Well you bet what this is...'
-    assert empty_input_dataset.metadata['pixel_size'].fields['value'].outer_type_ == List[float]
+    assert empty_input_dataset.metadata['pixel_size'].__fields__['value'].outer_type_ == List[float]
     assert empty_input_dataset.metadata['pixel_size'] is empty_input_dataset.pixel_size
     assert not empty_input_dataset.metadata['pixel_size'].optional
     empty_input_dataset.remove_metadata_requirement('pixel_size')
