@@ -262,14 +262,14 @@ class PSFBeadsAnalysis(Analysis):
                                          shapes=[model.Point(z=position[0].item(),
                                                              y=position[1].item(),
                                                              x=position[2].item(),
-                                                             stroke_color=(0, 255, 0, 0),
-                                                             fill_color=(50, 255, 50, 20))]))
+                                                             stroke_color=(0, 255, 0, .0),
+                                                             fill_color=(50, 255, 50, .1))]))
 
         edge_points = [model.Point(z=pos[0].item(),
                                    y=pos[1].item(),
                                    x=pos[2].item(),
-                                   stroke_color=(255, 0, 0, 150),
-                                   fill_color=(255, 50, 50, 20)
+                                   stroke_color=(255, 0, 0, .6),
+                                   fill_color=(255, 50, 50, .1)
                                    ) for pos in positions_edge_discarded]
         self.output.append(model.Roi(name="Discarded_edge",
                                      description="Beads discarded for being to close to the edge of the image",
@@ -278,8 +278,8 @@ class PSFBeadsAnalysis(Analysis):
         proximity_points = [model.Point(z=pos[0].item(),
                                         y=pos[1].item(),
                                         x=pos[2].item(),
-                                        stroke_color=(255, 0, 0, 150),
-                                        fill_color=(255, 50, 50, 20)
+                                        stroke_color=(255, 0, 0, .6),
+                                        fill_color=(255, 50, 50, .1)
                                         ) for pos in positions_proximity_discarded]
         self.output.append(model.Roi(name="Discarded_proximity",
                                      description="Beads discarded for being to close to each other",
@@ -288,8 +288,8 @@ class PSFBeadsAnalysis(Analysis):
         intensity_points = [model.Point(z=pos[0].item(),
                                         y=pos[1].item(),
                                         x=pos[2].item(),
-                                        stroke_color=(255, 0, 0, 150),
-                                        fill_color=(255, 50, 50, 20)
+                                        stroke_color=(255, 0, 0, .6),
+                                        fill_color=(255, 50, 50, .1)
                                         ) for pos in positions_intensity_discarded]
         self.output.append(model.Roi(name="Discarded_intensity",
                                      description="Beads discarded for being to intense or to weak. "
