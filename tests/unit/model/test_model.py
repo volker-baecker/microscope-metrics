@@ -14,6 +14,7 @@ def empty_input_dataset():
     metrics_dataset = Dataset()
     return metrics_dataset
 
+
 @pytest.fixture
 def filled_input_dataset():
     class Dataset(model.MetricsDataset):
