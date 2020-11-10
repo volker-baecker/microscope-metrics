@@ -12,18 +12,18 @@ def sample_analysis():
         def __init__(self):
             description = "This is the description of the analysis class"
             super().__init__(output_description=description)
-            self.add_requirement('pixel_sizes',
-                                 'This is the physical sizes of the pixels',
-                                 Tuple[float, float, float],
-                                 False)
-            self.add_requirement('emission_wavelengths',
-                                 'Emission Wavelengths',
-                                 Tuple,
-                                 False)
-            self.add_requirement('display_color',
-                                 'This will make it rainbowy',
-                                 str,
-                                 True)
+            self.add_requirement(name='pixel_sizes',
+                                 description='This is the physical sizes of the pixels',
+                                 data_type=Tuple[float, float, float],
+                                 optional=False)
+            self.add_requirement(name='emission_wavelengths',
+                                 description='Emission Wavelengths',
+                                 data_type=tuple,
+                                 optional=False)
+            self.add_requirement(name='display_color',
+                                 description='This will make it rainbowy',
+                                 data_type=str,
+                                 optional=True)
 
         @register_image_analysis
         def run(self):
@@ -66,20 +66,20 @@ def sample_analysis_with_data(sample_analysis):
 
 def test_analysis_requirements(sample_analysis_with_data):
 
-    assert sample_analysis_with_data.verify_requirements() is True
+    assert sample_analysis_with_data.validate_requirements() is True
     with pytest.raises(KeyError):
         sample_analysis_with_data.input.remove_metadata_requirement('non_existing')
-    sample_analysis_with_data.empty_metadata('pixel_sizes')
-    assert sample_analysis_with_data.verify_requirements() is False
+    sample_analysis_with_data.delete_metadata('pixel_sizes')
+    assert sample_analysis_with_data.validate_requirements() is False
     sample_analysis_with_data.set_metadata('pixel_sizes', (.2, .2, .5))
-    assert sample_analysis_with_data.verify_requirements() is True
+    assert sample_analysis_with_data.validate_requirements() is True
 
 
 def test_analysis_inheritance(sample_analysis_with_data):
 
     assert isinstance(sample_analysis_with_data, Analysis)
 
-    assert sample_analysis_with_data.verify_requirements(strict=True) is True
+    assert sample_analysis_with_data.validate_requirements() is True
 
     IMAGE_ANALYSIS_REGISTRY['run'](sample_analysis_with_data)
 

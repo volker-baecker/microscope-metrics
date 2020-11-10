@@ -4,11 +4,12 @@ It creates a few classes representing input data and output data
 from abc import ABC
 from dataclasses import field
 from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, validate_arguments, validator
+from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
+from pydantic.color import Color
 
-# TODO: remove this dependency and use pydantic
-from typeguard import check_type
-
+# # TODO: remove this dependency and use pydantic
+# from typeguard import check_type
+#
 from pandas import DataFrame
 from numpy import ndarray
 
@@ -32,6 +33,48 @@ from typing import Union, List, Tuple, Any
 # Int = AnnotationFactory(int)
 
 
+class MetadataConfig(BaseConfig):
+    validate_assignment = True
+
+
+# @dataclass(config=MetadataConfig)
+# class MetaDataRequirement(BaseModel):
+#     name: str
+#     data_type: Any
+#     description: str
+#     optional: bool
+#     units: str = None
+#     default: Any = None
+#     value_: Any = None  # field(default=None, repr=False)
+#
+#     class Config:
+#         validate_assignment = True
+#
+#     @validator('value_')
+#     def _validate_value(cls, v, values):
+#         check_type(values['name'], v, values['md_type'])
+#         return v
+#
+#     @property
+#     def value(self):
+#         if self.value_ is None:
+#             return self.default
+#         return self.value_
+#
+#     @value.setter
+#     def value(self, v):
+#         # check_type(self.name, v, self.md_type)
+#         self.value_ = v
+#
+#     @value.deleter
+#     def value(self):
+#         self.value_ = None
+#
+#     def __post_init__(self):
+#         if self.default is not None:
+#             self.value = self.default
+
+
 @dataclass
 class MetricsDataset:
     """This class represents a single dataset including the intensity data and the name.
@@ -40,13 +83,36 @@ class MetricsDataset:
     data: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def add_metadata_requirement(self, name: str, description: str, md_type, optional: bool, units: str = None, default: Any = None):
-        self.metadata[name] = {'description': description,
-                               'type': md_type,
-                               'optional': optional,
-                               'value': default,
-                               'units': units,
-                               'default': default}
+    def add_metadata_requirement(self,
+                                 name: str,
+                                 description: str,
+                                 data_type,
+                                 optional: bool,
+                                 units: str = None,
+                                 default: Any = None,
+                                 replace: bool = False):
+        if not replace and name in self.metadata:
+            raise KeyError(f'The key {name} is already used. Use argument replace=True to explicitly replace it')
+
+        model = create_model(name,
+                             # md_type=data_type,
+                             value=(data_type, default),
+                             description=(str, description),
+                             optional=(bool, optional),
+                             units=(str, units),
+                             default=(data_type, default),
+                             __config__=MetadataConfig)
+
+        self.metadata[name] = model()
+        setattr(self, name, self.metadata[name])
+
+        # self.metadata[name] = MetaDataRequirement(name=name,
+        #                                           data_type=data_type,
+        #                                           description=description,
+        #                                           optional=optional,
+        #                                           units=units,
+        #                                           default=default
+        #                                           )
 
     def remove_metadata_requirement(self, name: str):
         try:
@@ -59,38 +125,18 @@ class MetricsDataset:
         for name, req in self.metadata.items():
             str_output.append('----------')
             str_output.append('Name: ' + name)
-            str_output.extend([f'{k.capitalize()}: {v}' for k, v in req.items()])
+            str_output.append(req.__repr__())
         str_output.append('----------')
         str_output = '\n'.join(str_output)
         return str_output
 
-    def verify_requirements(self, strict=False):
-        validated = []
-        reasons = []
-        for name, req in self.metadata.items():
-            v, r = self._verify_requirement(name, req, strict)
-            validated.append(v)
-            reasons.append(r)
-        return all(validated), reasons
-
-    @staticmethod
-    def _verify_requirement(name, requirement, strict):
-        if requirement['optional'] and not strict:
-            return True, f'{name} is optional'
-        else:
-            if requirement['value'] is None:
-                return False, f'{name} has None value'
-            else:
-                try:
-                    check_type(name, requirement['value'], requirement['type'])
-                    return True, f'{name} is the correct type'
-                except TypeError:
-                    return False, f'{name} is not of the correct type ({requirement["type"]})'
+    def validate_requirements(self):
+        return all(req.value is not None for _, req in self.metadata.items() if not req.optional)
 
     def get_metadata_values(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['value']
+                return self.metadata[name].value
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -101,7 +147,7 @@ class MetricsDataset:
     def get_metadata_units(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['units']
+                return self.metadata[name].units
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -112,7 +158,7 @@ class MetricsDataset:
     def get_metadata_defaults(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['default']
+                return self.metadata[name].default
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -122,24 +168,13 @@ class MetricsDataset:
 
     def set_metadata(self, name: str, value):
         try:
-            expected_type = self.metadata[name]['type']
-        except KeyError as e:
-            raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
-        check_type(name, value, expected_type)
-        self.metadata[name]['value'] = value
-
-    def empty_metadata(self, name: str, replace_with_default: bool):
-        try:
-            if replace_with_default:
-                self.metadata[name]['value'] = self.metadata[name]['default']
-            else:
-                self.metadata[name]['value'] = None
+            self.metadata[name].value = value
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
 
     def del_metadata(self, name: str):
         try:
-            self.metadata[name]['value'] = None
+            self.metadata[name].value = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
@@ -237,6 +272,7 @@ class Shape(ABC):
     z: float = field(default=None)
     c: int = field(default=None)
     t: int = field(default=None)
+    # TODO: We might specify pydantic color in the model
     fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
     stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
     stroke_width: int = field(default=1)

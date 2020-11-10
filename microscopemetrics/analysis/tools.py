@@ -1,5 +1,5 @@
 """These are some possibly useful code snippets"""
-
+from pandas import DataFrame
 from skimage.filters import threshold_otsu, apply_hysteresis_threshold, gaussian
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
@@ -130,11 +130,10 @@ def _compute_channel_spots_properties(channel, label_channel, remove_center_cros
 
 def compute_spots_properties(image, labels, remove_center_cross=False, pixel_size=None):
     """Computes a number of properties for the PSF-like spots found on an image provided they are segmented"""
-    # TODO: Verify dimensions of image and labels are the same
-    properties = list()
+    properties = []
     positions = []
 
-    for c in range(image.shape[1]):  # TODO: Deal with Time here
+    for c in range(image.shape[1]):
         for t in range(image.shape[2]):
             pr, pos = _compute_channel_spots_properties(channel=image[:, c, t, ...],
                                                         label_channel=labels[:, c, t, ...],
@@ -151,9 +150,6 @@ def compute_distances_matrix(positions, max_distance, pixel_size=None):
     """
     module_logger.info('Computing distances between spots')
 
-    # Container for results
-    distances = []
-
     if len(positions) < 2:
         raise Exception('Not enough dimensions to do a distance measurement')
 
@@ -168,27 +164,28 @@ def compute_distances_matrix(positions, max_distance, pixel_size=None):
     for a, b in channel_permutations:
         distances_matrix = cdist(positions[a], positions[b], w=pixel_size)
 
-        pairwise_distances = {'channels': (a, b),
-                              'coord_of_A': list(),
-                              'coord_of_B': list(),
-                              'dist_zxy': list(),
-                              'dist_3d': list(),
-                              'labels_of_A': list(),
-                              'labels_of_B': list(),
-                              }
+        distances_df = DataFrame()
+
         for i, (pos_A, d) in enumerate(zip(positions[a], distances_matrix)):
             if d.min() < max_distance:
-                pairwise_distances['coord_of_A'].append(tuple(pos_A))
-                pairwise_distances['coord_of_B'].append(tuple(positions[b][d.argmin()]))
-                pairwise_distances['dist_zxy'].append(tuple(np.subtract(pairwise_distances['coord_of_A'][-1],
-                                                                        pairwise_distances['coord_of_B'][-1])))
-                pairwise_distances['dist_3d'].append(d.min())
-                pairwise_distances['labels_of_A'].append(i)
-                pairwise_distances['labels_of_B'].append(d.argmin().item())
+                distances_df = distances_df.append({"channel_a": a,
+                                                    "channel_b": b,
+                                                    "z_coord_a": pos_A[0],
+                                                    "y_coord_a": pos_A[1],
+                                                    "x_coord_a": pos_A[2],
+                                                    "z_coord_b": positions[b][d.argmin()][0],
+                                                    "y_coord_b": positions[b][d.argmin()][1],
+                                                    "x_coord_b": positions[b][d.argmin()][2],
+                                                    "z_dist": pos_A[0] - positions[b][d.argmin()][0],
+                                                    "y_dist": pos_A[1] - positions[b][d.argmin()][1],
+                                                    "x_dist": pos_A[2] - positions[b][d.argmin()][2],
+                                                    'dist_3d': d.min(),
+                                                    "labels_a": i,
+                                                    "labels_b": d.argmin()
+                                                    }, ignore_index=True
+                                                   )
 
-        distances.append(pairwise_distances)
-
-    return distances
+    return distances_df
 
 
 def _radial_mean(image, bins=None):

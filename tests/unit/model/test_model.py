@@ -14,6 +14,7 @@ def empty_input_dataset():
     metrics_dataset = Dataset()
     return metrics_dataset
 
+
 @pytest.fixture
 def filled_input_dataset():
     class Dataset(model.MetricsDataset):
@@ -21,13 +22,13 @@ def filled_input_dataset():
             super().__init__()
     metrics_dataset = Dataset()
     metrics_dataset.data = [[1, 2, 3], [4, 5, 6]]
-    metrics_dataset.add_metadata_requirement(name='pixel size',
+    metrics_dataset.add_metadata_requirement(name='pixel_size',
                                              description='Well you bet how big this is...',
-                                             md_type=List[float],
+                                             data_type=List[float],
                                              optional=False)
     metrics_dataset.add_metadata_requirement(name='wavelength',
                                              description='Well you bet what color this is...',
-                                             md_type=Union[int, float],
+                                             data_type=float,
                                              optional=True)
 
     return metrics_dataset
@@ -79,31 +80,32 @@ def test_set_get_input_data(empty_input_dataset):
 
 
 def test_add_remove_input_metadata_requirements(empty_input_dataset):
-    empty_input_dataset.add_metadata_requirement(name='pixel size',
+    empty_input_dataset.add_metadata_requirement(name='pixel_size',
                                                  description='Well you bet what this is...',
-                                                 md_type=List[float],
+                                                 data_type=List[float],
                                                  optional=False)
-    assert empty_input_dataset.get_metadata_values('pixel size') is None
-    assert empty_input_dataset.metadata['pixel size']['description'] == 'Well you bet what this is...'
-    assert empty_input_dataset.metadata['pixel size']['type'] == List[float]
-    assert not empty_input_dataset.metadata['pixel size']['optional']
-    empty_input_dataset.remove_metadata_requirement('pixel size')
+    assert empty_input_dataset.get_metadata_values('pixel_size') is None
+    assert empty_input_dataset.metadata['pixel_size'].description == 'Well you bet what this is...'
+    assert empty_input_dataset.metadata['pixel_size'].__fields__['value'].outer_type_ == List[float]
+    assert empty_input_dataset.metadata['pixel_size'] is empty_input_dataset.pixel_size
+    assert not empty_input_dataset.metadata['pixel_size'].optional
+    empty_input_dataset.remove_metadata_requirement('pixel_size')
     assert len(empty_input_dataset.metadata) == 0
 
 
 def test_set_get_del_metadata(filled_input_dataset):
-    filled_input_dataset.set_metadata('pixel size', [.2, .2, .5])
-    assert filled_input_dataset.get_metadata_values('pixel size') == [.2, .2, .5]
-    filled_input_dataset.set_metadata('pixel size', [.2, .2, 2])
-    assert filled_input_dataset.get_metadata_values('pixel size') == [.2, .2, 2]
-    with pytest.raises(TypeError):
-        filled_input_dataset.set_metadata('pixel size', [.2, .2, 'not'])
+    filled_input_dataset.set_metadata('pixel_size', [.2, .2, .5])
+    assert filled_input_dataset.get_metadata_values('pixel_size') == [.2, .2, .5]
+    filled_input_dataset.set_metadata('pixel_size', [.2, .2, 2])
+    assert filled_input_dataset.get_metadata_values('pixel_size') == [.2, .2, 2]
+    with pytest.raises(ValidationError):
+        filled_input_dataset.set_metadata('pixel_size', [.2, .2, 'not'])
 
     filled_input_dataset.set_metadata('wavelength', 488)
-    assert filled_input_dataset.get_metadata_values('wavelength') == 488
+    assert filled_input_dataset.get_metadata_values('wavelength') == 488.0
     filled_input_dataset.set_metadata('wavelength', 488.7)
     assert filled_input_dataset.get_metadata_values('wavelength') == 488.7
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         filled_input_dataset.set_metadata('wavelength', 'blue')
     filled_input_dataset.del_metadata('wavelength')
     assert filled_input_dataset.get_metadata_values('wavelength') is None
@@ -111,23 +113,15 @@ def test_set_get_del_metadata(filled_input_dataset):
 
 def test_describe_requirements(filled_input_dataset):
     description = filled_input_dataset.describe_metadata_requirement()
-    assert description == '----------\n' \
-                          'Name: pixel size\n' \
-                          'Description: Well you bet how big this is...\n' \
-                          'Type: typing.List[float]\n' \
-                          'Optional: False\n' \
-                          'Value: None\n' \
-                          'Units: None\n' \
-                          'Default: None\n' \
-                          '----------\n' \
-                          'Name: wavelength\n' \
-                          'Description: Well you bet what color this is...\n' \
-                          'Type: typing.Union[int, float]\n' \
-                          'Optional: True\n' \
-                          'Value: None\n' \
-                          'Units: None\n' \
-                          'Default: None\n' \
-                          '----------'
+    assert description == ('----------\n'
+                           'Name: pixel_size\n'
+                           "pixel_size(value=None, description='Well you bet how big this is...', "
+                           'optional=False, units=None, default=None)\n'
+                           '----------\n'
+                           'Name: wavelength\n'
+                           "wavelength(value=None, description='Well you bet what color this is...', "
+                           'optional=True, units=None, default=None)\n'
+                           '----------')
 
 
 def test_constructor_MetricsOutput():
