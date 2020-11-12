@@ -266,7 +266,7 @@ class KeyValues(OutputProperty):
         if all(isinstance(v, (str, int, float, list, tuple)) for _, v in k_v.items()):
             return k_v
         else:
-            raise TypeError('Values for a KeyValue property must be str, int or float')
+            raise TypeError('Values for a KeyValue property must be str, int, float, list or tuple')
 
 
 @dataclass
