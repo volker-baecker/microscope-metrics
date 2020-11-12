@@ -217,9 +217,6 @@ class Point(Shape):
     x: float = field(default=None, metadata={'units': 'PIXELS'})
     y: float = field(default=None, metadata={'units': 'PIXELS'})
 
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
-
 
 @dataclass
 class Line(Shape):
@@ -227,10 +224,6 @@ class Line(Shape):
     y1: float = field(default=None, metadata={'units': 'PIXELS'})
     x2: float = field(default=None, metadata={'units': 'PIXELS'})
     y2: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x1: Float['pixels'] = field(default=None)
-    # y1: Float['pixels'] = field(default=None)
-    # x2: Float['pixels'] = field(default=None)
-    # y2: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -239,10 +232,6 @@ class Rectangle(Shape):
     y: float = field(default=None, metadata={'units': 'PIXELS'})
     w: float = field(default=None, metadata={'units': 'PIXELS'})
     h: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
-    # w: Float['pixels'] = field(default=None)
-    # h: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -257,8 +246,6 @@ class Ellipse(Shape):
 class Polygon(Shape):
     points: List[Tuple[float, float]] = field(default=None, metadata={'units': 'PIXELS'})
     is_open: bool = field(default=False)
-    # point_list: Annotated(list[tuple[float, float]], "pixels")
-    # is_open: Annotated(bool, "is open")
 
 
 class Mask(Shape):
