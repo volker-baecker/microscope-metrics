@@ -7,72 +7,14 @@ from pydantic.dataclasses import dataclass
 from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
 from pydantic.color import Color
 
-# # TODO: remove this dependency and use pydantic
-# from typeguard import check_type
-#
 from pandas import DataFrame
 from numpy import ndarray
 
 from typing import Union, List, Tuple, Any
 
-# This is for future python 3.9
-# class AnnotationFactory:
-#     def __init__(self, type_hint):
-#         self.type_hint = type_hint
-#
-#     def __getitem__(self, key):
-#         if isinstance(key, tuple):
-#             return Annotated[(self.type_hint, ) + key]
-#         return Annotated[self.type_hint, key]
-#
-#     def __repr__(self):
-#         return f"{self.__class__.__name__}({self.type_hint})"
-#
-#
-# Float = AnnotationFactory(float)
-# Int = AnnotationFactory(int)
-
 
 class MetadataConfig(BaseConfig):
     validate_assignment = True
-
-
-# @dataclass(config=MetadataConfig)
-# class MetaDataRequirement(BaseModel):
-#     name: str
-#     data_type: Any
-#     description: str
-#     optional: bool
-#     units: str = None
-#     default: Any = None
-#     value_: Any = None  # field(default=None, repr=False)
-#
-#     class Config:
-#         validate_assignment = True
-#
-#     @validator('value_')
-#     def _validate_value(cls, v, values):
-#         check_type(values['name'], v, values['md_type'])
-#         return v
-#
-#     @property
-#     def value(self):
-#         if self.value_ is None:
-#             return self.default
-#         return self.value_
-#
-#     @value.setter
-#     def value(self, v):
-#         # check_type(self.name, v, self.md_type)
-#         self.value_ = v
-#
-#     @value.deleter
-#     def value(self):
-#         self.value_ = None
-#
-#     def __post_init__(self):
-#         if self.default is not None:
-#             self.value = self.default
 
 
 @dataclass
@@ -105,14 +47,6 @@ class MetricsDataset:
 
         self.metadata[name] = model()
         setattr(self, name, self.metadata[name])
-
-        # self.metadata[name] = MetaDataRequirement(name=name,
-        #                                           data_type=data_type,
-        #                                           description=description,
-        #                                           optional=optional,
-        #                                           units=units,
-        #                                           default=default
-        #                                           )
 
     def remove_metadata_requirement(self, name: str):
         try:
@@ -272,30 +206,16 @@ class Shape(ABC):
     z: float = field(default=None)
     c: int = field(default=None)
     t: int = field(default=None)
-    # TODO: We might specify pydantic color in the model
-    fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
-    stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
+    fill_color: Color = field(default=Color((10, 10, 10, 0.1)))
+    stroke_color: Color = field(default=Color((255, 255, 255, 1.0)))
     stroke_width: int = field(default=1)
     label: str = field(default=None)
-
-    # Exmaple for python 3.9 annotating units
-    # z: Int['z plane number'] = field(default=None)
-    # c: Int['channel number'] = field(default=None)
-    # t: Int['time frame'] = field(default=None)
-    # fill_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] =
-    #             field(default=(10, 10, 10, 10))
-    # stroke_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] =
-    #               field(default=(255, 255, 255, 255))
-    # stroke_width: int  = field(default=1)
 
 
 @dataclass
 class Point(Shape):
     x: float = field(default=None, metadata={'units': 'PIXELS'})
     y: float = field(default=None, metadata={'units': 'PIXELS'})
-
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -304,10 +224,6 @@ class Line(Shape):
     y1: float = field(default=None, metadata={'units': 'PIXELS'})
     x2: float = field(default=None, metadata={'units': 'PIXELS'})
     y2: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x1: Float['pixels'] = field(default=None)
-    # y1: Float['pixels'] = field(default=None)
-    # x2: Float['pixels'] = field(default=None)
-    # y2: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -316,10 +232,6 @@ class Rectangle(Shape):
     y: float = field(default=None, metadata={'units': 'PIXELS'})
     w: float = field(default=None, metadata={'units': 'PIXELS'})
     h: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
-    # w: Float['pixels'] = field(default=None)
-    # h: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -334,8 +246,6 @@ class Ellipse(Shape):
 class Polygon(Shape):
     points: List[Tuple[float, float]] = field(default=None, metadata={'units': 'PIXELS'})
     is_open: bool = field(default=False)
-    # point_list: Annotated(list[tuple[float, float]], "pixels")
-    # is_open: Annotated(bool, "is open")
 
 
 class Mask(Shape):
@@ -356,7 +266,7 @@ class KeyValues(OutputProperty):
         if all(isinstance(v, (str, int, float, list, tuple)) for _, v in k_v.items()):
             return k_v
         else:
-            raise TypeError('Values for a KeyValue property must be str, int or float')
+            raise TypeError('Values for a KeyValue property must be str, int, float, list or tuple')
 
 
 @dataclass
