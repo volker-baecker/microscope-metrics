@@ -4,32 +4,17 @@ It creates a few classes representing input data and output data
 from abc import ABC
 from dataclasses import field
 from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, validate_arguments, validator
-
-# TODO: remove this dependency and use pydantic
-from typeguard import check_type
+from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
+from pydantic.color import Color
 
 from pandas import DataFrame
 from numpy import ndarray
 
 from typing import Union, List, Tuple, Any
 
-# This is for future python 3.9
-# class AnnotationFactory:
-#     def __init__(self, type_hint):
-#         self.type_hint = type_hint
-#
-#     def __getitem__(self, key):
-#         if isinstance(key, tuple):
-#             return Annotated[(self.type_hint, ) + key]
-#         return Annotated[self.type_hint, key]
-#
-#     def __repr__(self):
-#         return f"{self.__class__.__name__}({self.type_hint})"
-#
-#
-# Float = AnnotationFactory(float)
-# Int = AnnotationFactory(int)
+
+class MetadataConfig(BaseConfig):
+    validate_assignment = True
 
 
 @dataclass
@@ -40,13 +25,28 @@ class MetricsDataset:
     data: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def add_metadata_requirement(self, name: str, description: str, md_type, optional: bool, units: str = None, default: Any = None):
-        self.metadata[name] = {'description': description,
-                               'type': md_type,
-                               'optional': optional,
-                               'value': default,
-                               'units': units,
-                               'default': default}
+    def add_metadata_requirement(self,
+                                 name: str,
+                                 description: str,
+                                 data_type,
+                                 optional: bool,
+                                 units: str = None,
+                                 default: Any = None,
+                                 replace: bool = False):
+        if not replace and name in self.metadata:
+            raise KeyError(f'The key {name} is already used. Use argument replace=True to explicitly replace it')
+
+        model = create_model(name,
+                             # md_type=data_type,
+                             value=(data_type, default),
+                             description=(str, description),
+                             optional=(bool, optional),
+                             units=(str, units),
+                             default=(data_type, default),
+                             __config__=MetadataConfig)
+
+        self.metadata[name] = model()
+        setattr(self, name, self.metadata[name])
 
     def remove_metadata_requirement(self, name: str):
         try:
@@ -59,38 +59,18 @@ class MetricsDataset:
         for name, req in self.metadata.items():
             str_output.append('----------')
             str_output.append('Name: ' + name)
-            str_output.extend([f'{k.capitalize()}: {v}' for k, v in req.items()])
+            str_output.append(req.__repr__())
         str_output.append('----------')
         str_output = '\n'.join(str_output)
         return str_output
 
-    def verify_requirements(self, strict=False):
-        validated = []
-        reasons = []
-        for name, req in self.metadata.items():
-            v, r = self._verify_requirement(name, req, strict)
-            validated.append(v)
-            reasons.append(r)
-        return all(validated), reasons
-
-    @staticmethod
-    def _verify_requirement(name, requirement, strict):
-        if requirement['optional'] and not strict:
-            return True, f'{name} is optional'
-        else:
-            if requirement['value'] is None:
-                return False, f'{name} has None value'
-            else:
-                try:
-                    check_type(name, requirement['value'], requirement['type'])
-                    return True, f'{name} is the correct type'
-                except TypeError:
-                    return False, f'{name} is not of the correct type ({requirement["type"]})'
+    def validate_requirements(self):
+        return all(req.value is not None for _, req in self.metadata.items() if not req.optional)
 
     def get_metadata_values(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['value']
+                return self.metadata[name].value
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -101,7 +81,7 @@ class MetricsDataset:
     def get_metadata_units(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['units']
+                return self.metadata[name].units
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -112,7 +92,7 @@ class MetricsDataset:
     def get_metadata_defaults(self, name: Union[str, list]):
         if isinstance(name, str):
             try:
-                return self.metadata[name]['default']
+                return self.metadata[name].default
             except KeyError as e:
                 raise KeyError(f'Metadatum "{name}" does not exist') from e
         elif isinstance(name, list):
@@ -122,24 +102,13 @@ class MetricsDataset:
 
     def set_metadata(self, name: str, value):
         try:
-            expected_type = self.metadata[name]['type']
-        except KeyError as e:
-            raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
-        check_type(name, value, expected_type)
-        self.metadata[name]['value'] = value
-
-    def empty_metadata(self, name: str, replace_with_default: bool):
-        try:
-            if replace_with_default:
-                self.metadata[name]['value'] = self.metadata[name]['default']
-            else:
-                self.metadata[name]['value'] = None
+            self.metadata[name].value = value
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" is not a valid requirement') from e
 
     def del_metadata(self, name: str):
         try:
-            self.metadata[name]['value'] = None
+            self.metadata[name].value = None
         except KeyError as e:
             raise KeyError(f'Metadata "{name}" does not exist') from e
 
@@ -237,29 +206,16 @@ class Shape(ABC):
     z: float = field(default=None)
     c: int = field(default=None)
     t: int = field(default=None)
-    fill_color: Tuple[int, int, int, int] = field(default=(10, 10, 10, 10))
-    stroke_color: Tuple[int, int, int, int] = field(default=(255, 255, 255, 255))
+    fill_color: Color = field(default=Color((10, 10, 10, 0.1)))
+    stroke_color: Color = field(default=Color((255, 255, 255, 1.0)))
     stroke_width: int = field(default=1)
     label: str = field(default=None)
-
-    # Exmaple for python 3.9 annotating units
-    # z: Int['z plane number'] = field(default=None)
-    # c: Int['channel number'] = field(default=None)
-    # t: Int['time frame'] = field(default=None)
-    # fill_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] =
-    #             field(default=(10, 10, 10, 10))
-    # stroke_color: tuple[Int['red component'], Int['green component'], Int['blue component'], Int['alpha component']] =
-    #               field(default=(255, 255, 255, 255))
-    # stroke_width: int  = field(default=1)
 
 
 @dataclass
 class Point(Shape):
     x: float = field(default=None, metadata={'units': 'PIXELS'})
     y: float = field(default=None, metadata={'units': 'PIXELS'})
-
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -268,10 +224,6 @@ class Line(Shape):
     y1: float = field(default=None, metadata={'units': 'PIXELS'})
     x2: float = field(default=None, metadata={'units': 'PIXELS'})
     y2: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x1: Float['pixels'] = field(default=None)
-    # y1: Float['pixels'] = field(default=None)
-    # x2: Float['pixels'] = field(default=None)
-    # y2: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -280,10 +232,6 @@ class Rectangle(Shape):
     y: float = field(default=None, metadata={'units': 'PIXELS'})
     w: float = field(default=None, metadata={'units': 'PIXELS'})
     h: float = field(default=None, metadata={'units': 'PIXELS'})
-    # x: Float['pixels'] = field(default=None)
-    # y: Float['pixels'] = field(default=None)
-    # w: Float['pixels'] = field(default=None)
-    # h: Float['pixels'] = field(default=None)
 
 
 @dataclass
@@ -298,8 +246,6 @@ class Ellipse(Shape):
 class Polygon(Shape):
     points: List[Tuple[float, float]] = field(default=None, metadata={'units': 'PIXELS'})
     is_open: bool = field(default=False)
-    # point_list: Annotated(list[tuple[float, float]], "pixels")
-    # is_open: Annotated(bool, "is open")
 
 
 class Mask(Shape):
@@ -320,7 +266,7 @@ class KeyValues(OutputProperty):
         if all(isinstance(v, (str, int, float, list, tuple)) for _, v in k_v.items()):
             return k_v
         else:
-            raise TypeError('Values for a KeyValue property must be str, int or float')
+            raise TypeError('Values for a KeyValue property must be str, int, float, list or tuple')
 
 
 @dataclass

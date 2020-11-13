@@ -1,43 +1,19 @@
-from microscopemetrics.utilities.utilities import airy_fun, gaussian_fun, convert_SI
+from typing import Tuple
 
 import numpy as np
+from pandas import DataFrame
 from skimage.filters import gaussian
 from skimage.feature import peak_local_max
-from scipy.signal import find_peaks
 from scipy.optimize import curve_fit, fsolve
-from statistics import median, mean
-import datetime
-from math import sin, asin, cos
+from ..utilities.utilities import airy_fun, gaussian_fun
 
 # Import sample superclass
-from .samples import Analysis, Configurator
+from microscopemetrics.samples import *
 
 # Creating logging services
 import logging
 
 module_logger = logging.getLogger("metrics.samples.psf_beads")
-
-
-def estimate_min_bead_distance(image):
-    res = image["resolution_theoretical_rayleigh_lateral"][0]
-    if res is None:
-        module_logger.error(
-            "Could not get resolution value to estimate minimal distance between beads"
-        )
-        return 50
-    else:
-        unit_corr = convert_SI(
-            1,
-            image["pixel_size_units"][1],
-            image["resolution_theoretical_rayleigh_units"],
-        )
-        try:
-            min_dist = round(10 * (res / (image["pixel_size"][1] * unit_corr)))
-        except TypeError:
-            module_logger.error("Could not estimate minimal distance between beads")
-            return 50
-
-    return min_dist
 
 
 def _fit_gaussian(profile, guess=None):
@@ -87,16 +63,38 @@ class PSFBeadsConfigurator(Configurator):
 
 @PSFBeadsConfigurator.register_sample_analysis
 class PSFBeadsAnalysis(Analysis):
-    """This class handles a PSF beads sample:
-    - Defines the logic of the associated analyses
-    - Defines the creation of reports"""
-
-    # TODO: Implemented multichannel
-
+    """This class handles a PSF beads sample
+    """
     def __init__(self, config=None):
-        image_analysis_to_func = {"beads": self.analyze_beads}
-        self.configurator = PSFBeadsConfigurator(config)
-        super().__init__(config=config, image_analysis_to_func=image_analysis_to_func)
+        super().__init__(output_description="Analysis output of samples containing PSF grade fluorescent beads. "
+                                            "It contains information about resolution.")
+        self.add_requirement(name='pixel_size',
+                             description='Physical size of the voxel in z, y and x',
+                             data_type=Tuple[float, float, float],
+                             units='MICRON',
+                             optional=False)
+        self.add_requirement(name='min_lateral_distance_factor',
+                             description='Minimal distance that has to separate laterally the beads represented as the '
+                                         'number of times the theoretical resolution.',
+                             data_type=int,
+                             optional=True,
+                             default=20)
+        self.add_requirement(name='theoretical_fwhm_lateral_res',
+                             description='Theoretical FWHM lateral resolution of the sample.',
+                             data_type=float,
+                             units='MICRON',
+                             optional=False)
+        self.add_requirement(name='theoretical_fwhm_axial_res',
+                             description='Theoretical FWHM axial resolution of the sample.',
+                             data_type=float,
+                             units='MICRON',
+                             optional=False)
+        self.add_requirement(name='sigma',
+                             description='When provided, smoothing sigma to be applied to image prior to bead detection.'
+                                         'Does not apply to resolution measurements',
+                             data_type=float,
+                             optional=True,
+                             default=None)
 
     @staticmethod
     def _analyze_bead(image):
@@ -117,9 +115,6 @@ class PSFBeadsAnalysis(Analysis):
         x_fitted_profile, x_fwhm = _fit_airy(x_profile)
         y_fitted_profile, y_fwhm = _fit_airy(y_profile)
         z_fitted_profile, z_fwhm = _fit_airy(z_profile)
-        # x_fitted_profile, x_fwhm = _fit_gaussian(x_profile)
-        # y_fitted_profile, y_fwhm = _fit_gaussian(y_profile)
-        # z_fitted_profile, z_fwhm = _fit_gaussian(z_profile)
 
         return (
             (z_profile, y_profile, x_profile),
@@ -130,7 +125,7 @@ class PSFBeadsAnalysis(Analysis):
     @staticmethod
     def _find_beads(
         image, min_distance, sigma=None
-    ):  # , low_corr_factors, high_corr_factors):
+    ):
 
         image = np.squeeze(image)
         image_mip = np.max(image, axis=0)
@@ -193,15 +188,10 @@ class PSFBeadsAnalysis(Analysis):
         pos_proximity_disc = positions_3d[np.logical_not(proximity_keep_mask), :]
         pos_intensity_disc = positions_3d[np.logical_not(intensity_keep_mask), :]
 
-        bead_images = list()
-        for pos in positions:
-            bead_images.append(
-                image[
-                    :,
-                    (pos[1] - (min_distance // 2)) : (pos[1] + (min_distance // 2)),
-                    (pos[2] - (min_distance // 2)) : (pos[2] + (min_distance // 2)),
-                ]
-            )
+        bead_images = [image[:,
+                             (pos[1] - (min_distance // 2)) : (pos[1] + (min_distance // 2)),
+                             (pos[2] - (min_distance // 2)) : (pos[2] + (min_distance // 2)),
+                             ] for pos in positions]
         return (
             bead_images,
             positions,
@@ -210,47 +200,45 @@ class PSFBeadsAnalysis(Analysis):
             pos_intensity_disc,
         )
 
-    def analyze_beads(self, image, config):
-        """Analyzes images of sub-resolution beads in order to extract data on the optical performance of the microscope.
+    def estimate_min_bead_distance(self):
+        # TODO: get the resolution somewhere or pass it as a metadata
+        res = 3  # theoretical resolution in pixels
+        distance = self.get_metadata_values("min_lateral_distance_factor")
+        return res * distance
 
-        :param image: image instance
-        :param config: MetricsConfig instance defining analysis configuration.
-                       Must contain the analysis parameters defined by the configurator
-
-        :returns a list of images
-                 a list of rois
-                 a list of tags
-                 a list of dicts
-                 a dict containing table_names and tables
+    @register_image_analysis
+    def run(self):
+        """Analyzes images of sub-resolution beads in order to extract data on the optical
+        performance of the microscope.
         """
+        logger.info("Validating requirements...")
+        if not self.validate_requirements():
+            logger.error("Metadata requirements ara not valid")
+            return False
+
+        logger.info("Analyzing spots image...")
+
         # Get some analysis_config parameters
-        pixel_size_units = image["pixel_size_units"]
-        pixel_size = image["pixel_size"]
-        min_bead_distance = config.getint(
-            "min_distance", fallback=estimate_min_bead_distance(image)
-        )
+        pixel_size_units = self.get_metadata_units("pixel_size")
+        pixel_size = self.get_metadata_values("pixel_size")
+        min_bead_distance = self.estimate_min_bead_distance()
 
-        # Remove all negative intensities. 3D-SIM images contain negative values.
-        np.clip(image["image_data"], a_min=0, a_max=None, out=image["image_data"])
+        # Remove all negative intensities. eg. 3D-SIM images may contain negative values.
+        image_data = np.clip(self.input.data["beads_image"], a_min=0, a_max=None)
 
-        # TODO: validate units
-        # TODO: Unify the naming of 'image' across the module
         # Validating nyquist
         try:
-            if (
-                pixel_size[1] > image["nyquist_lateral"][0]
-            ):  # TODO: fix when multichannel psf.
+            if pixel_size[1] > (2 * self.get_metadata_values("theoretical_fwhm_lateral_res")):
                 module_logger.warning(
                     "Nyquist criterion is not fulfilled in the lateral direction"
                 )
-            if pixel_size[0] > image["nyquist_axial"][0]:
+            if pixel_size[0] > (2 * self.get_metadata_values("theoretical_fwhm_axial_res")):
                 module_logger.warning(
                     "Nyquist criterion is not fulfilled in the axial direction"
                 )
         except (TypeError, IndexError) as e:
-            module_logger.warning("Could not validate Nyquist sampling criterion")
+            module_logger.error("Could not validate Nyquist sampling criterion")
 
-        # Find the beads
         (
             bead_images,
             positions,
@@ -258,292 +246,135 @@ class PSFBeadsAnalysis(Analysis):
             positions_proximity_discarded,
             positions_intensity_discarded,
         ) = self._find_beads(
-            image=image["image_data"],
+            image=image_data,
             min_distance=min_bead_distance,
-            sigma=config.getint("sigma", None),
+            sigma=self.get_metadata_values('sigma'),
         )
+
+        for i, bead_image in enumerate(bead_images):
+            self.output.append(model.Image(name=f"bead_nr{i:02d}",
+                                           description=f"PSF bead crop for bead nr {i}",
+                                           data=np.expand_dims(bead_image, axis=(1, 2))))
+
+        for i, position in enumerate(positions):
+            self.output.append(model.Roi(name=f"bead_nr{i:02d}_centroid",
+                                         description=f"Weighted centroid of bead nr {i}",
+                                         shapes=[model.Point(z=position[0].item(),
+                                                             y=position[1].item(),
+                                                             x=position[2].item(),
+                                                             stroke_color=(0, 255, 0, .0),
+                                                             fill_color=(50, 255, 50, .1))]))
+
+        edge_points = [model.Point(z=pos[0].item(),
+                                   y=pos[1].item(),
+                                   x=pos[2].item(),
+                                   stroke_color=(255, 0, 0, .6),
+                                   fill_color=(255, 50, 50, .1)
+                                   ) for pos in positions_edge_discarded]
+        self.output.append(model.Roi(name="Discarded_edge",
+                                     description="Beads discarded for being to close to the edge of the image",
+                                     shapes=edge_points))
+
+        proximity_points = [model.Point(z=pos[0].item(),
+                                        y=pos[1].item(),
+                                        x=pos[2].item(),
+                                        stroke_color=(255, 0, 0, .6),
+                                        fill_color=(255, 50, 50, .1)
+                                        ) for pos in positions_proximity_discarded]
+        self.output.append(model.Roi(name="Discarded_proximity",
+                                     description="Beads discarded for being to close to each other",
+                                     shapes=proximity_points))
+
+        intensity_points = [model.Point(z=pos[0].item(),
+                                        y=pos[1].item(),
+                                        x=pos[2].item(),
+                                        stroke_color=(255, 0, 0, .6),
+                                        fill_color=(255, 50, 50, .1)
+                                        ) for pos in positions_intensity_discarded]
+        self.output.append(model.Roi(name="Discarded_intensity",
+                                     description="Beads discarded for being to intense or to weak. "
+                                                 "Suspected not being single beads",
+                                     shapes=intensity_points))
 
         # Generate profiles and measure FWHM
-        original_profiles = list()
-        fitted_profiles = list()
-        fwhm_values = list()
+        raw_profiles = []
+        fitted_profiles = []
+        fwhm_values = []
         for bead_image in bead_images:
             opr, fpr, fwhm = self._analyze_bead(bead_image)
-            original_profiles.append(opr)
+            raw_profiles.append(opr)
             fitted_profiles.append(fpr)
-            fwhm = tuple([f * p for f, p in zip(fwhm, pixel_size)])
+            fwhm = tuple(f * ps for f, ps in zip(fwhm, pixel_size))
             fwhm_values.append(fwhm)
 
-        # Prepare key-value pairs
-        key_values = dict()
+        properties_df = DataFrame()
+        properties_df["bead_nr"] = range(len(bead_images))
+        properties_df["max_intensity"] = [e.max() for e in bead_images]
+        properties_df["min_intensity"] = [e.min() for e in bead_images]
+        properties_df["z_centroid"] = [e[0] for e in positions]
+        properties_df["y_centroid"] = [e[1] for e in positions]
+        properties_df["x_centroid"] = [e[2] for e in positions]
+        properties_df["centroid_units"] = "PIXEL"
+        properties_df["z_fwhm"] = [e[0] for e in fwhm_values]
+        properties_df["y_fwhm"] = [e[1] for e in fwhm_values]
+        properties_df["x_fwhm"] = [e[2] for e in fwhm_values]
+        properties_df["fwhm_units"] = pixel_size_units
 
-        # Prepare tables
-        properties = [
-            {
-                "name": "bead_image",
-                "desc": "Reference to bead image.",
-                "getter": lambda i, pos, fwhm, bead_image: [
-                    0
-                ],  # We leave empty as it is populated after roi creation
-                "data": list(),
-            },
-            {
-                "name": "bead_roi",
-                "desc": "Reference to bead roi.",
-                "getter": lambda i, pos, fwhm, bead_image: [
-                    0
-                ],  # We leave empty as it is populated after roi creation
-                "data": list(),
-            },
-            {
-                "name": "roi_label",
-                "desc": "Label of the bead roi.",
-                "getter": lambda i, pos, fwhm, bead_image: [i],
-                "data": list(),
-            },
-            {
-                "name": "max_intensity",
-                "desc": "Maximum intensity of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [bead_image.max().item()],
-                "data": list(),
-            },
-            {
-                "name": "x_centroid",
-                "desc": "Centroid X coordinate of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [pos[2].item()],
-                "data": list(),
-            },
-            {
-                "name": "y_centroid",
-                "desc": "Centroid Y coordinate of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [pos[1].item()],
-                "data": list(),
-            },
-            {
-                "name": "z_centroid",
-                "desc": "Centroid Z coordinate of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [pos[0].item()],
-                "data": list(),
-            },
-            {
-                "name": "bead_centroid_units",
-                "desc": "Centroid coordinates units for the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: ["PIXEL"],
-                "data": list(),
-            },
-            {
-                "name": "x_fwhm",
-                "desc": "FWHM in the X axis through the max intensity point of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [fwhm[2].item()],
-                "data": list(),
-            },
-            {
-                "name": "y_fwhm",
-                "desc": "FWHM in the Y axis through the max intensity point of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [fwhm[1].item()],
-                "data": list(),
-            },
-            {
-                "name": "z_fwhm",
-                "desc": "FWHM in the Z axis through the max intensity point of the bead.",
-                "getter": lambda i, pos, fwhm, bead_image: [fwhm[0].item()],
-                "data": list(),
-            },
-            {
-                "name": "fwhm_units",
-                "desc": "FWHM units.",
-                "getter": lambda i, pos, fwhm, bead_image: [pixel_size_units[0]],
-                "data": list(),
-            },
-        ]
+        self.output.append(model.Table(name="Analysis_PSF_properties",
+                                       description="Properties associated with the analysis",
+                                       table=properties_df))
 
-        # creating a table to store the profiles
-        profiles_x = list()
-        profiles_y = list()
-        profiles_z = list()
-        for i, (original_profile, fitted_profile) in enumerate(
-            zip(original_profiles, fitted_profiles)
-        ):
-            profiles_x.extend(
-                [
-                    {
-                        "name": f"raw_x_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in original_profile[2]],
-                    },
-                    {
-                        "name": f"fitted_x_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in fitted_profile[2]],
-                    },
-                ]
-            )
-            profiles_y.extend(
-                [
-                    {
-                        "name": f"raw_y_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in original_profile[1]],
-                    },
-                    {
-                        "name": f"fitted_y_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in fitted_profile[1]],
-                    },
-                ]
-            )
-            profiles_z.extend(
-                [
-                    {
-                        "name": f"raw_z_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in original_profile[0]],
-                    },
-                    {
-                        "name": f"fitted_z_profile_bead_{i:02d}",
-                        "desc": f"Intensity profile along x axis of bead {i:02d}.",
-                        "getter": None,
-                        "data": [p.item() for p in fitted_profile[0]],
-                    },
-                ]
-            )
+        profiles_z_df = DataFrame()
+        profiles_y_df = DataFrame()
+        profiles_x_df = DataFrame()
 
-        out_images = list()
-        for i, img in enumerate(bead_images):
-            out_images.append(
-                {
-                    "image_data": np.expand_dims(img, axis=(1, 2)),
-                    "image_name": f'{image["image_name"]}_bead_{i}',
-                    "image_desc": f"PSF bead crop",
-                }
-            )
+        for i, (raw_profile, fitted_profile) in enumerate(zip(raw_profiles, fitted_profiles)):
+            profiles_z_df[f"raw_z_profile_bead_{i:02d}"] = raw_profile[0]
+            profiles_z_df[f"fitted_z_profile_bead_{i:02d}"] = fitted_profile[0]
+            profiles_y_df[f"raw_y_profile_bead_{i:02d}"] = raw_profile[1]
+            profiles_y_df[f"fitted_y_profile_bead_{i:02d}"] = fitted_profile[1]
+            profiles_x_df[f"raw_x_profile_bead_{i:02d}"] = raw_profile[2]
+            profiles_x_df[f"fitted_x_profile_bead_{i:02d}"] = fitted_profile[2]
 
-        out_rois = []
+        self.output.append(model.Table(name="Analysis_PSF_Z_profiles",
+                                       description="Raw and fitted profiles along Z axis of beads",
+                                       table=DataFrame({e['name']: e['data'] for e in profiles_z_df})))
 
-        # Populate the data
-        for i, (pos, fwhm, bead_image) in enumerate(
-            zip(positions, fwhm_values, bead_images)
-        ):
-            for prop in properties:
-                prop["data"].extend(prop["getter"](i, pos, fwhm, bead_image))
+        self.output.append(model.Table(name="Analysis_PSF_Y_profiles",
+                                       description="Raw and fitted profiles along Y axis of beads",
+                                       table=DataFrame({e['name']: e['data'] for e in profiles_y_df})))
 
-        out_rois.extend(
-            self._pos_to_point_rois(
-                positions_list=positions,
-                description="Bead weighted centroid",
-                individual_rois=True,
-                stroke_color=(0, 255, 0, 150),
-                fill_color=(50, 255, 50, 20),
-            )
-        )
-        out_rois.extend(
-            self._pos_to_point_rois(
-                positions_list=positions_edge_discarded,
-                description="Discarded: edge",
-                individual_rois=False,
-                stroke_color=(255, 0, 0, 150),
-                fill_color=(255, 50, 50, 20),
-            )
-        )
-        out_rois.extend(
-            self._pos_to_point_rois(
-                positions_list=positions_proximity_discarded,
-                description="Discarded: proximity",
-                individual_rois=False,
-                stroke_color=(255, 0, 0, 150),
-                fill_color=(255, 50, 50, 20),
-            )
-        )
-        out_rois.extend(
-            self._pos_to_point_rois(
-                positions_list=positions_intensity_discarded,
-                description="Discarded: intensity",
-                individual_rois=False,
-                stroke_color=(255, 0, 0, 150),
-                fill_color=(255, 50, 50, 20),
-            )
-        )
+        self.output.append(model.Table(name="Analysis_PSF_X_profiles",
+                                       description="Raw and fitted profiles along X axis of beads",
+                                       table=DataFrame({e['name']: e['data'] for e in profiles_x_df})))
 
-        key_values["nr_of_beads_analyzed"] = positions.shape[0]
-        if positions.shape[0] == 0:
-            key_values["resolution_mean_fwhm_x"] = "No mean could be calculated"
-            key_values["resolution_mean_fwhm_y"] = "No mean could be calculated"
-            key_values["resolution_mean_fwhm_z"] = "No mean could be calculated"
-            key_values["resolution_mean_fwhm_units"] = "No mean could be calculated"
+        key_values = {"nr_of_beads_analyzed": positions.shape[0]}
+
+        if key_values["nr_of_beads_analyzed"] == 0:
+            key_values["resolution_mean_fwhm_z"] = "None"
+            key_values["resolution_mean_fwhm_y"] = "None"
+            key_values["resolution_mean_fwhm_x"] = "None"
+            key_values["resolution_mean_fwhm_units"] = "None"
         else:
-            key_values["resolution_mean_fwhm_x"] = mean(
-                properties[[p["name"] for p in properties].index("x_fwhm")]["data"]
-            )
-            key_values["resolution_mean_fwhm_y"] = mean(
-                properties[[p["name"] for p in properties].index("y_fwhm")]["data"]
-            )
-            key_values["resolution_mean_fwhm_z"] = mean(
-                properties[[p["name"] for p in properties].index("z_fwhm")]["data"]
-            )
-            key_values["resolution_mean_fwhm_units"] = properties[
-                [p["name"] for p in properties].index("fwhm_units")
-            ]["data"][0]
-        key_values["resolution_theoretical_fwhm_lateral"] = image[
-            "resolution_theoretical_fwhm_lateral"
-        ]
-        key_values["resolution_theoretical_fwhm_axial"] = image[
-            "resolution_theoretical_fwhm_axial"
-        ]
-        key_values["resolution_theoretical_fwhm_units"] = image[
-            "resolution_theoretical_fwhm_units"
-        ]
+            key_values["resolution_mean_fwhm_z"] = properties_df["z_fwhm"].mean()
+            key_values["resolution_median_fwhm_z"] = properties_df["z_fwhm"].median()
+            key_values["resolution_stdev_fwhm_z"] = properties_df["z_fwhm"].std()
+            key_values["resolution_mean_fwhm_y"] = properties_df["y_fwhm"].mean()
+            key_values["resolution_median_fwhm_y"] = properties_df["y_fwhm"].median()
+            key_values["resolution_stdev_fwhm_y"] = properties_df["y_fwhm"].std()
+            key_values["resolution_mean_fwhm_x"] = properties_df["x_fwhm"].mean()
+            key_values["resolution_median_fwhm_x"] = properties_df["x_fwhm"].median()
+            key_values["resolution_stdev_fwhm_x"] = properties_df["x_fwhm"].std()
+        key_values["resolution_theoretical_fwhm_lateral"] = self.get_metadata_values('theoretical_fwhm_lateral_res')
+        key_values["resolution_theoretical_fwhm_lateral_units"] = self.get_metadata_units('theoretical_fwhm_lateral_res')
+        key_values["resolution_theoretical_fwhm_axial"] = self.get_metadata_values('theoretical_fwhm_axial_res')
+        key_values["resolution_theoretical_fwhm_axial_units"] = self.get_metadata_units('theoretical_fwhm_axial_res')
 
-        out_tags = list()
-        out_dicts = [key_values]
-        out_tables = dict()
-        if len(properties[0]["data"]) > 0:
-            out_tables.update(
-                {
-                    "Analysis_PSF_properties": properties,
-                    "Analysis_PSF_X_profiles": profiles_x,
-                    "Analysis_PSF_Y_profiles": profiles_y,
-                    "Analysis_PSF_Z_profiles": profiles_z,
-                }
-            )
+        self.output.append(model.KeyValues(name='Measurements_results',
+                                           description='Output measurements',
+                                           key_values=key_values))
 
-        return out_images, out_rois, out_tags, out_dicts, out_tables
-
-    def _pos_to_point_rois(
-        self,
-        positions_list,
-        description,
-        individual_rois=True,
-        stroke_color=(255, 255, 255, 255),
-        fill_color=(255, 255, 255, 10),
-    ):
-        roi_list = list()
-        shapes = list()
-        for i, pos in enumerate(positions_list):
-            shape = self._create_shape(
-                shape_type="point",
-                x_pos=pos[2].item(),
-                y_pos=pos[1].item(),
-                z_pos=pos[0].item(),
-                stroke_color=stroke_color,
-                fill_color=fill_color,
-                stroke_width=2,
-            )
-            if individual_rois:
-                roi_list.append(
-                    self._create_roi(
-                        shapes=[shape], name=str(i), description=description
-                    )
-                )
-            else:
-                shapes.append(shape)
-        if not individual_rois:
-            roi_list.append(self._create_roi(shapes=shapes, description=description))
-        return roi_list
+        return True
 
 
 # Calculate 2D FFT

@@ -1,4 +1,6 @@
 # Import sample infrastructure
+from itertools import product
+
 from microscopemetrics.samples import *
 
 from typing import Union, Tuple, List
@@ -10,7 +12,7 @@ from skimage.transform import hough_line  # hough_line_peaks, probabilistic_houg
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
-from statistics import median
+from statistics import median, mean
 from microscopemetrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from ..utilities.utilities import multi_airy_fun, airy_fun
 
@@ -42,44 +44,45 @@ class ArgolightBAnalysis(Analysis):
                          )
         self.add_requirement(name='spots_distance',
                              description='Distance between argolight spots',
-                             requirement_type=float,
+                             data_type=float,
                              units='MICRON',
                              optional=False,
                              default=None)
         self.add_requirement(name='pixel_size',
                              description='Physical size of the voxel in z, y and x',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              units='MICRON',
                              optional=False,
                              default=None)
         self.add_requirement(name='sigma',
                              description='Smoothing factor for objects detection',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              optional=True,
                              default=(1, 3, 3))
         self.add_requirement(name='lower_threshold_correction_factors',
                              description='Correction factor for the lower thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
-                             requirement_type=Union[List[float], Tuple[float], float],
+                             data_type=Union[List[float], Tuple[float], float],
                              optional=True,
                              default=None)
         self.add_requirement(name='upper_threshold_correction_factors',
                              description='Correction factor for the upper thresholds. Must be a tuple with len = nr '
                                          'of channels or a float if all equal',
-                             requirement_type=Union[List[float], Tuple[float], float],
+                             data_type=Union[List[float], Tuple[float], float],
                              optional=True,
                              default=None)
         self.add_requirement(name='remove_center_cross',
                              description='Remove the center cross found in some Argolight patterns',
-                             requirement_type=bool,
+                             data_type=bool,
                              optional=True,
                              default=False)
 
     @register_image_analysis
     def run(self):
-        logger.info("Verifying requirements...")
-        if not self.verify_requirements():
-            raise Exception("Metadata requirements ara not valid")
+        logger.info("Validating requirements...")
+        if not self.validate_requirements():
+            logger.error("Metadata requirements ara not valid")
+            return False
 
         logger.info("Analyzing spots image...")
 
@@ -100,252 +103,105 @@ class ArgolightBAnalysis(Analysis):
             high_corr_factors=self.get_metadata_values("upper_threshold_correction_factors"),
         )
 
+        self.output.append(model.Image(name=list(self.input.data.keys())[0],
+                                       description="Labels image with detected spots. "
+                                                   "Image intensities correspond to roi labels.",
+                                       data=labels)
+                           )
+
         spots_properties, spots_positions = compute_spots_properties(
             image=self.input.data['argolight_b'], labels=labels,
             remove_center_cross=self.get_metadata_values('remove_center_cross'),
         )
 
-        spots_distances = compute_distances_matrix(
+        distances_df = compute_distances_matrix(
             positions=spots_positions,
             max_distance=max_distance,
             pixel_size=self.get_metadata_values('pixel_size'),
         )
 
-        # Prepare key-value pairs
-        key_values = {}
+        properties_kv = {}
+        properties_df = DataFrame()
 
-        # Prepare tables
-        properties = [
-            {
-                "name": "channel",
-                "desc": "Channel.",
-                "getter": lambda ch, props: [ch for _ in props],
-                "data": list(),
-            },
-            {
-                "name": "mask_labels",
-                "desc": "Labels of the mask ROIs.",
-                "getter": lambda ch, props: [p["label"] for p in props],
-                "data": list(),
-            },
-            {
-                "name": "volume",
-                "desc": "Volume of the ROIs.",
-                "getter": lambda ch, props: [p["area"].item() for p in props],
-                "data": list(),
-            },
-            {
-                "name": "roi_volume_units",
-                "desc": "Volume units for the ROIs.",
-                "getter": lambda ch, props: ["VOXEL" for _ in range(len(props))],
-                "data": list(),
-            },
-            {
-                "name": "max_intensity",
-                "desc": "Maximum intensity of the ROIs.",
-                "getter": lambda ch, props: [p["max_intensity"].item() for p in props],
-                "data": list(),
-            },
-            {
-                "name": "min_intensity",
-                "desc": "Minimum intensity of the ROIs.",
-                "getter": lambda ch, props: [p["min_intensity"].item() for p in props],
-                "data": list(),
-            },
-            {
-                "name": "mean_intensity",
-                "desc": "Mean intensity of the ROIs.",
-                "getter": lambda ch, props: [p["mean_intensity"].item() for p in props],
-                "data": list(),
-            },
-            {
-                "name": "integrated_intensity",
-                "desc": "Integrated intensity of the ROIs.",
-                "getter": lambda ch, props: [
-                    p["integrated_intensity"].item() for p in props
-                ],
-                "data": list(),
-            },
-            {
-                "name": "x_weighted_centroid",
-                "desc": "Weighted Centroid X coordinates of the ROIs.",
-                "getter": lambda ch, props: [
-                    p["weighted_centroid"][2].item() for p in props
-                ],
-                "data": list(),
-            },
-            {
-                "name": "y_weighted_centroid",
-                "desc": "Weighted Centroid Y coordinates of the ROIs.",
-                "getter": lambda ch, props: [
-                    p["weighted_centroid"][1].item() for p in props
-                ],
-                "data": list(),
-            },
-            {
-                "name": "z_weighted_centroid",
-                "desc": "Weighted Centroid Z coordinates of the ROIs.",
-                "getter": lambda ch, props: [
-                    p["weighted_centroid"][0].item() for p in props
-                ],
-                "data": list(),
-            },
-            {
-                "name": "roi_weighted_centroid_units",
-                "desc": "Weighted centroid coordinates units for the ROIs.",
-                "getter": lambda ch, props: ["PIXEL" for _ in range(len(props))],
-                "data": list(),
-            },
-        ]
+        for ch, ch_spot_props in enumerate(spots_properties):
+            ch_df = DataFrame()
+            ch_df['channel'] = [ch for _ in ch_spot_props]
+            ch_df["mask_labels"] = [p["label"] for p in ch_spot_props]
+            ch_df["volume"] = [p["area"] for p in ch_spot_props]
+            ch_df["roi_volume_units"] = "VOXEL"
+            ch_df["max_intensity"] = [p["max_intensity"] for p in ch_spot_props]
+            ch_df["min_intensity"] = [p["min_intensity"] for p in ch_spot_props]
+            ch_df["mean_intensity"] = [p["mean_intensity"] for p in ch_spot_props]
+            ch_df["integrated_intensity"] = [p["integrated_intensity"] for p in ch_spot_props]
+            ch_df["z_weighted_centroid"] = [p["weighted_centroid"][0] for p in ch_spot_props]
+            ch_df["y_weighted_centroid"] = [p["weighted_centroid"][1] for p in ch_spot_props]
+            ch_df["x_weighted_centroid"] = [p["weighted_centroid"][2] for p in ch_spot_props]
+            ch_df["roi_weighted_centroid_units"] = "PIXEL"
 
-        distances = [
-            {
-                "name": "channel_a",
-                "desc": "Channel A.",
-                "getter": lambda props: [
-                    props["channels"][0] for _ in props["dist_3d"]
-                ],
-                "data": list(),
-            },
-            {
-                "name": "channel_b",
-                "desc": "Channel B.",
-                "getter": lambda props: [
-                    props["channels"][1] for _ in props["dist_3d"]
-                ],
-                "data": list(),
-            },
-            {
-                "name": "ch_a_roi_labels",
-                "desc": "Labels of the ROIs in channel A.",
-                "getter": lambda props: props["labels_of_A"],
-                "data": list(),
-            },
-            {
-                "name": "ch_b_roi_labels",
-                "desc": "Labels of the ROIs in channel B.",
-                "getter": lambda props: props["labels_of_B"],
-                "data": list(),
-            },
-            {
-                "name": "distance_3d",
-                "desc": "Distance in 3d between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.",
-                "getter": lambda props: [p.item() for p in props["dist_3d"]],
-                "data": list(),
-            },
-            {
-                "name": "distance_x",
-                "desc": "Distance in X between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.",
-                "getter": lambda props: [p[2].item() for p in props["dist_zxy"]],
-                "data": list(),
-            },
-            {
-                "name": "distance_y",
-                "desc": "Distance in Y between Weighted Centroids of mutually closest neighbouring ROIs in channels A and B.",
-                "getter": lambda props: [p[1].item() for p in props["dist_zxy"]],
-                "data": list(),
-            },
-            {
-                "name": "distance_z",
-                "desc": "Distance in Z between Weighted Centroids of mutually "
-                        "closest neighbouring ROIs in channels A and B.",
-                "getter": lambda props: [p[0].item() for p in props["dist_zxy"]],
-                "data": list(),
-            },
-            {
-                "name": "distances_units",
-                "desc": "Weighted Centroid distances units.",
-                "getter": lambda props: [self.get_metadata_values('pixel_size')[0] for _ in props["dist_3d"]
-                                         ],
-                "data": list(),
-            },
-        ]
+            # Key metrics for spots intensities
+            properties_kv[f"nr_of_spots_ch{ch:02d}"] = len(ch_df)
+            properties_kv[f"max_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].max().item()
+            properties_kv[f"max_intensity_roi_ch{ch:02d}"] = ch_df["integrated_intensity"].argmax().item()
+            properties_kv[f"min_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].min().item()
+            properties_kv[f"min_intensity_roi_ch{ch:02d}"] = ch_df["integrated_intensity"].argmin().item()
+            properties_kv[f"mean_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].mean().item()
+            properties_kv[f"median_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].median().item()
+            properties_kv[f"std_mean_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].std().item()
+            properties_kv[f"mad_mean_intensity_ch{ch:02d}"] = ch_df["integrated_intensity"].mad().item()
+            properties_kv[f"min-max_intensity_ratio_ch{ch:02d}"] = (properties_kv[f"min_intensity_ch{ch:02d}"] /
+                                                                    properties_kv[f"max_intensity_ch{ch:02d}"])
 
-        # Populate the data
-        for ch, ch_spot_prop in enumerate(spots_properties):
-
-            key_values[f"nr_of_spots_ch{ch:02d}"] = len(ch_spot_prop)
-
-            key_values[f"max_intensity_ch{ch:02d}"] = max(
-                x["integrated_intensity"] for x in ch_spot_prop
-            )
-            key_values[f"max_intensity_roi_ch{ch:02d}"] = ch_spot_prop[
-                [x["integrated_intensity"] for x in ch_spot_prop].index(
-                    key_values[f"max_intensity_ch{ch:02d}"]
-                )
-            ]["label"]
-
-            key_values[f"min_intensity_ch{ch:02d}"] = min(
-                x["integrated_intensity"] for x in ch_spot_prop
-            )
-            key_values[f"min_intensity_roi_ch{ch:02d}"] = ch_spot_prop[
-                [x["integrated_intensity"] for x in ch_spot_prop].index(
-                    key_values[f"min_intensity_ch{ch:02d}"]
-                )
-            ]["label"]
-
-            key_values[f"min-max_intensity_ratio_ch{ch:02d}"] = (
-                    key_values[f"min_intensity_ch{ch:02d}"]
-                    / key_values[f"max_intensity_ch{ch:02d}"]
-            )
-
-            for prop in properties:
-                prop["data"].extend(prop["getter"](ch, ch_spot_prop))
+            properties_df = properties_df.append(ch_df)
 
             channel_shapes = [model.Point(x=p["weighted_centroid"][2].item(),
                                           y=p["weighted_centroid"][1].item(),
                                           z=p["weighted_centroid"][0].item(),
                                           c=ch,
                                           label=f'{p["label"]}')
-                              for p in ch_spot_prop
+                              for p in ch_spot_props
                               ]
             self.output.append(model.Roi(name=f'Centroids_ch{ch:03d}',
                                          description=f"weighted centroids channel {ch}",
                                          shapes=channel_shapes)
                                )
 
-        # TODO: match roi labels with mask labels
-        for ch, chs_dist in enumerate(spots_distances):
-            for dists in distances:
-                dists["data"].extend(dists["getter"](chs_dist))
+        distances_kv = {"distance_units": self.get_metadata_units('pixel_size')}
 
-                if dists["name"] == "distance_3d":
-                    key_values[
-                        f'median_3d_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'
-                    ] = median([d.item() for d in chs_dist["dist_3d"]])
+        for a, b in product(distances_df.channel_a.unique(), distances_df.channel_b.unique()):
+            temp_df = distances_df[(distances_df.channel_a == a) & (distances_df.channel_b == b)]
+            a = int(a)
+            b = int(b)
 
-                if dists["name"] == "distance_z":
-                    key_values[
-                        f'median_z_dist_ch{chs_dist["channels"][0]:02d}_ch{chs_dist["channels"][1]:02d}'
-                    ] = median([d[0].item() for d in chs_dist["dist_zxy"]])
+            distances_kv[f'mean_3d_dist_ch{a:02d}_ch{b:02d}'] = temp_df.dist_3d.mean().item()
+            distances_kv[f'median_3d_dist_ch{a:02d}_ch{b:02d}'] = temp_df.dist_3d.median().item()
+            distances_kv[f'std_3d_dist_ch{a:02d}_ch{b:02d}'] = temp_df.dist_3d.std().item()
+            distances_kv[f'mad_3d_dist_ch{a:02d}_ch{b:02d}'] = temp_df.dist_3d.mad().item()
+            distances_kv[f'mean_z_dist_ch{a:02d}_ch{b:02d}'] = temp_df.z_dist.mean().item()
+            distances_kv[f'median_z_dist_ch{a:02d}_ch{b:02d}'] = temp_df.z_dist.median().item()
+            distances_kv[f'std_z_dist_ch{a:02d}_ch{b:02d}'] = temp_df.z_dist.std().item()
+            distances_kv[f'mad_z_dist_ch{a:02d}_ch{b:02d}'] = temp_df.z_dist.mad().item()
 
-        key_values["distance_units"] = self.get_metadata_units('pixel_size')
+        self.output.append(model.KeyValues(name='Intensity Key Annotations',
+                                           description='Key Intensity Measurements on Argolight D spots',
+                                           key_values=properties_kv)
+                           )
 
-        # We need to add a time dimension to the labels image
-        labels = np.expand_dims(labels, 2)
-
-        self.output.append(model.Image(name=list(self.input.data.keys())[0],
-                                  description="Labels image with detected spots. "
-                                              "Image intensities correspond to roi labels.",
-                                  data=labels)
-                      )
-
-        self.output.append(model.KeyValues(name='Key-Value Annotations',
-                                      description='Measurements on Argolight D pattern',
-                                      key_values=key_values)
-                      )
+        self.output.append(model.KeyValues(name='Distances Key Annotations',
+                                           description='Key Distance Measurements on Argolight D spots',
+                                           key_values=distances_kv)
+                           )
 
         self.output.append(model.Table(name='Properties',
-                                  description="Analysis_argolight_D_properties",
-                                  table=DataFrame({e['name']: e['data'] for e in properties})
-                                  )
-                      )
+                                       description="Analysis_argolight_D_properties",
+                                       table=properties_df)
+                           )
 
         self.output.append(model.Table(name='Distances',
-                                  description="Analysis_argolight_D_distances",
-                                  table=DataFrame({e['name']: e['data'] for e in distances})
-                                  )
-                      )
+                                       description="Analysis_argolight_D_distances",
+                                       table=distances_df)
+                           )
+
+        return True
 
 
 @ArgolightConfigurator.register_sample_analysis
@@ -361,18 +217,18 @@ class ArgolightEAnalysis(Analysis):
             )
         self.add_requirement(name='pixel_size',
                              description='Physical size of the voxel in z, y and x',
-                             requirement_type=Tuple[float, float, float],
+                             data_type=Tuple[float, float, float],
                              units='MICRON',
                              optional=False
                              )
         self.add_requirement(name='axis',
                              description='axis along which resolution is being measured. 1=Y, 2=X',
-                             requirement_type=int,
+                             data_type=int,
                              optional=False
                              )
         self.add_requirement(name='measured_band',
                              description='Fraction of the image across which intensity profiles are measured',
-                             requirement_type=float,
+                             data_type=float,
                              optional=True,
                              default=.4
                              )
@@ -380,11 +236,19 @@ class ArgolightEAnalysis(Analysis):
     @register_image_analysis
     def run(self):
         """A intermediate function to specify the axis to be analyzed"""
-        self._analyze_resolution(image=self.input.data['argolight_e'],
-                                 axis=self.get_metadata_values('axis'),
-                                 measured_band=self.get_metadata_values("measured_band"),
-                                 pixel_size=self.get_metadata_values('pixel_size'),
-                                 pixel_size_units=self.get_metadata_units('pixel_size'))
+
+        logger.info("Validating requirements...")
+        if not self.validate_requirements():
+            logger.error("Metadata requirements ara not valid")
+            return False
+
+        logger.info("Analyzing resolution...")
+
+        return self._analyze_resolution(image=self.input.data['argolight_e'],
+                                        axis=self.get_metadata_values('axis'),
+                                        measured_band=self.get_metadata_values("measured_band"),
+                                        pixel_size=self.get_metadata_values('pixel_size'),
+                                        pixel_size_units=self.get_metadata_units('pixel_size'))
 
     def _analyze_resolution(self, image, axis, measured_band, pixel_size, pixel_size_units):
         (
@@ -480,6 +344,8 @@ class ArgolightEAnalysis(Analysis):
                                                    'defined axis',
                                        table=DataFrame.from_dict(out_tables))
                            )
+
+        return True
 
 
 class ArgolightReporter(Reporter):
@@ -673,7 +539,7 @@ class ArgolightReporter(Reporter):
                     "y_weighted_centroid",
                 ]
                 ],
-                pos_table.getWhereList(
+           pos_table.getWhereList(
                     condition=f"channel=={ch_A}",
                     variables={},
                     start=0,

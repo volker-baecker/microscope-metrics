@@ -71,13 +71,13 @@ class Analysis(ABC):
     def add_requirement(self,
                         name: str,
                         description: str,
-                        requirement_type: Any,
+                        data_type,
                         optional: bool,
                         units: str = None,
                         default: Any = None):
         self.input.add_metadata_requirement(name=name,
                                             description=description,
-                                            md_type=requirement_type,
+                                            data_type=data_type,
                                             optional=optional,
                                             units=units,
                                             default=default)
@@ -86,19 +86,14 @@ class Analysis(ABC):
         # TODO: must add description of image dataset
         print(self.input.describe_metadata_requirement())
 
-    def verify_requirements(self, strict: bool = False):
-        valid, reasons = self.input.verify_requirements(strict=strict)
-        if valid:
-            return True
-        else:
-            print('\n'.join(reasons))
-            return False
+    def validate_requirements(self):
+        return self.input.validate_requirements()
 
     def set_metadata(self, name: str, value):
         self.input.set_metadata(name, value)
 
-    def empty_metadata(self, name: str, replace_with_default: bool = True):
-        self.input.empty_metadata(name, replace_with_default)
+    def delete_metadata(self, name: str):
+        self.input.del_metadata(name)
 
     def get_metadata_values(self, name: Union[str, list]):
         return self.input.get_metadata_values(name)
