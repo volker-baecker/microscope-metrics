@@ -1,12 +1,12 @@
 
 # import configuration parser
-from metrics.utils.utils import MetricsConfig
+from microscopemetrics.utilities.utilities import MetricsConfig
 
 # import logging
 import logging
 
 # import Argolight analysis tools
-from metrics.samples import argolight
+from microscopemetrics.samples import argolight
 
 # import other sample types analysis tools
 
@@ -14,12 +14,12 @@ from metrics.samples import argolight
 import imageio
 import numpy as np
 from itertools import product
-from metrics.interface import omero
-from credentials import *
+# from metrics.interface import omero
+# from credentials import *
 
 # TODO: these constants should go somewhere else in the future. Basically are recovered by OMERO scripting interface
-# RUN_MODE = 'local'
-RUN_MODE = 'omero'
+RUN_MODE = 'local'
+# RUN_MODE = 'omero'
 
 # spots_image_id = 7
 # vertical_stripes_image_id = 3
