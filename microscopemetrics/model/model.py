@@ -4,7 +4,7 @@ It creates a few classes representing input data and output data
 from abc import ABC
 from dataclasses import field
 from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
+from pydantic import validator, BaseConfig, create_model
 from pydantic.color import Color
 
 from pandas import DataFrame
