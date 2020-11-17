@@ -154,13 +154,15 @@ def save_spots_point_rois(names: list, data: list, image_id):
     nb_channels = image.getSizeC()
 
     for c in range(nb_channels):
-        shapes = list()
-        for x, y, z, l in zip(data[names.index(f'ch{c:02d}_XWeightedCentroid')][0],
-                              data[names.index(f'ch{c:02d}_YWeightedCentroid')][0],
-                              data[names.index(f'ch{c:02d}_ZWeightedCentroid')][0],
-                              data[names.index(f'ch{c:02d}_MaskLabels')][0],
-                              ):
-            shapes.append(omero.create_shape_point(x, y, z, shape_name=f'ch{c:02d}_{l}'))
+        shapes = [
+            omero.create_shape_point(x, y, z, shape_name=f'ch{c:02d}_{l}')
+            for x, y, z, l in zip(
+                data[names.index(f'ch{c:02d}_XWeightedCentroid')][0],
+                data[names.index(f'ch{c:02d}_YWeightedCentroid')][0],
+                data[names.index(f'ch{c:02d}_ZWeightedCentroid')][0],
+                data[names.index(f'ch{c:02d}_MaskLabels')][0],
+            )
+        ]
 
         omero.create_roi(connection=conn,
                          image=image,
@@ -179,7 +181,7 @@ def save_line_rois(data: dict, image_id):
     nb_channels = image.getSizeC()
 
     for c in range(nb_channels):
-        shapes = list()
+        shapes = []
         for l in range(len(data[f'ch{c:02d}_peak_positions'])):
             for p in range(2):
                 if data['resolution_axis'] == 1:  # Y resolution -> horizontal rois
