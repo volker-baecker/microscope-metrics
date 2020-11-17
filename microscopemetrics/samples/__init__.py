@@ -89,6 +89,9 @@ class Analysis(ABC):
     def validate_requirements(self):
         return self.input.validate_requirements()
 
+    def list_unmet_requirements(self):
+        return self.input.list_unmet_requirements()
+
     def set_metadata(self, name: str, value):
         self.input.set_metadata(name, value)
 

@@ -12,7 +12,6 @@ from skimage.transform import hough_line  # hough_line_peaks, probabilistic_houg
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
-from statistics import median, mean
 from microscopemetrics.analysis.tools import segment_image, compute_distances_matrix, compute_spots_properties
 from ..utilities.utilities import multi_airy_fun, airy_fun
 
@@ -47,13 +46,13 @@ class ArgolightBAnalysis(Analysis):
                              data_type=float,
                              units='MICRON',
                              optional=False,
-                             default=None)
+                             )
         self.add_requirement(name='pixel_size',
                              description='Physical size of the voxel in z, y and x',
                              data_type=Tuple[float, float, float],
                              units='MICRON',
                              optional=False,
-                             default=None)
+                             )
         self.add_requirement(name='sigma',
                              description='Smoothing factor for objects detection',
                              data_type=Tuple[float, float, float],
