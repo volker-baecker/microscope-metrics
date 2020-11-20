@@ -4,7 +4,7 @@ It creates a few classes representing input data and output data
 from abc import ABC
 from dataclasses import field
 from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, validate_arguments, validator, BaseConfig, create_model
+from pydantic import validator, BaseConfig, create_model
 from pydantic.color import Color
 
 from pandas import DataFrame
@@ -37,7 +37,6 @@ class MetricsDataset:
             raise KeyError(f'The key {name} is already used. Use argument replace=True to explicitly replace it')
 
         model = create_model(name,
-                             # md_type=data_type,
                              value=(data_type, default),
                              description=(str, description),
                              optional=(bool, optional),
@@ -63,6 +62,9 @@ class MetricsDataset:
         str_output.append('----------')
         str_output = '\n'.join(str_output)
         return str_output
+
+    def list_unmet_requirements(self):
+        return [req.name for _, req in self.metadata.items() if not req.optional and req.value is None]
 
     def validate_requirements(self):
         return all(req.value is not None for _, req in self.metadata.items() if not req.optional)

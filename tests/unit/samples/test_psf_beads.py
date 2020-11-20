@@ -10,7 +10,7 @@ import numpy as np
 def psf_beads_analysis():
     temp_dir = path.abspath(TEST_DATA_DIR)
     file_name = 'psf_beads_EM-488_MAG-40.npy'
-    file_url = ''
+    file_url = 'http://dev.mri.cnrs.fr/attachments/download/2295/psf_beads_EM-488_MAG-40.npy'
     try:
         data = np.load(path.join(temp_dir, file_name))
     except FileNotFoundError as e:

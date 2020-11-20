@@ -79,6 +79,3 @@ def test_run_argolight_e_horizontal(argolight_e_horizontal):
 def test_run_argolight_e_vertical(argolight_e_vertical):
     assert argolight_e_vertical.run()
     assert argolight_e_vertical.output
-
-
-
